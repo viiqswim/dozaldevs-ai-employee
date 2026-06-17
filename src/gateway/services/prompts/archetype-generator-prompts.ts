@@ -28,6 +28,10 @@ export function buildConnectedAppsBlock(
     lines.push(
       'When the job requires one of these apps, describe the action in plain English in execution_steps — the runtime skill will resolve the exact command. For example: "Create a new Notion page with the summary content" or "Add a row to the Google Sheet with the report data."',
     );
+    lines.push('');
+    lines.push(
+      '**CRITICAL — Composio Tool Registry Rule**: When execution_steps describe any action using a connected Composio app (e.g., "read the Notion page", "add a row to Google Sheets", "create a Linear issue"), you MUST add `/tools/composio/execute.ts` to `tool_registry.tools`. This is the runtime tool that executes ALL Composio app actions — it must always be registered when any Composio-connected app is used in execution_steps.',
+    );
   } else {
     lines.push('**Connected apps: NONE**');
     lines.push('');
@@ -71,8 +75,9 @@ ${INJECTION_BOUNDARY}
 - \`model\` should be \`minimax/minimax-m2.7\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - \`role_name\` must be a kebab-case slug derived from the description (e.g. "daily-slack-digest", "guest-reply-bot")
-- \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity.
+- \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity. If the description implies non-English output (e.g., mentions a non-English team, non-English documents, or the tenant's connected systems have non-English content), the identity MUST specify the output language explicitly. Example: "You produce all schedules and communications in Spanish."
 - \`execution_steps\` is a numbered list of steps describing WHAT the employee does during execution. Minimum 3 steps.
+- **Trigger Consistency (MANDATORY)**: \`overview.trigger\` MUST accurately reflect \`trigger_sources.type\`. If \`type: 'manual'\`, overview.trigger MUST say "Triggered manually on demand" (never describe a schedule). If \`type: 'scheduled'\`, overview.trigger MUST describe the schedule. If \`type: 'webhook'\`, overview.trigger MUST describe the webhook event. These two fields MUST NOT contradict each other. If the description says "every morning" or "daily", set \`trigger_sources.type = 'scheduled'\` AND set overview.trigger to match.
 - Each \`execution_steps\` step MUST be a concrete action, not a vague instruction. Bad: "1. Analyze the data." Good: "1. Read all messages in the #support Slack channel from the last 24 hours using the Slack read-channel tool." Steps must reference specific tools from tool_registry by name when applicable.
 - \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. CRITICAL: The delivery container runs SEPARATELY from the execution container — it does NOT have access to any /tmp/ files written during execution (e.g. /tmp/draft.txt, /tmp/digest-draft.txt). The approved content is injected into the delivery prompt as a JSON blob within \`<approved-content>\` XML tags. delivery_steps MUST always follow this exact 3-step pattern: (1) "The approved content is in the prompt within the \`<approved-content>\` XML block as JSON. Use the bash tool to parse the JSON, extract the \`draft\` field, and write it to \`/tmp/delivery-draft.txt\`." — this creates the file the next step needs, (2) the delivery action using exact tool syntax — e.g., \`tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text-file /tmp/delivery-draft.txt\` (ALWAYS use \`$NOTIFICATION_CHANNEL\` env var, never a hardcoded channel name), (3) submit output confirming delivery. delivery_steps MUST ALWAYS be a non-empty numbered list — never null.
 
@@ -113,6 +118,11 @@ For each detected input, create an \`input_schema\` item with:
 - NEVER create an \`input_schema\` item for a Slack channel (channel names, delivery channels, notification channels). The platform provides a dedicated Slack Channel setting for every employee — it is injected automatically. If the description mentions posting to Slack, reference it in \`overview\` and \`execution_steps\` but do NOT create an input for it.
 
 If no runtime inputs are needed, omit \`input_schema\` entirely (do not include an empty array).
+
+**DATE/PERIOD RULE (MANDATORY)**: When the description implies the employee operates on a specific date, reporting period, or time range that may differ from the actual run date (e.g., "that day", "for that date", "for the period", "for yesterday", "checking out today"), you MUST:
+1. Create an \`input_schema\` item: \`{"key": "target_date", "label": "Target Date", "type": "date", "frequency": "every_run", "required": true, "description": "The date to process."}\`
+2. Use \`{{target_date}}\` in execution_steps wherever the date is referenced.
+3. The FIRST numbered step in execution_steps MUST read the date: "Read the target date by running \`printenv INPUT_TARGET_DATE\` and save it as \`targetDate\`. CRITICAL: Use \`targetDate\` for every subsequent step. NEVER use the system date or 'today'."
 
 ## Template Syntax in execution_steps
 Use \`{{key}}\` syntax in the \`execution_steps\` field for every detected input (matching the \`key\` in \`input_schema\`).
@@ -157,6 +167,199 @@ CRITICAL: The submission step MUST pass the /tmp/ draft file path so the content
 \`**STOP. Do nothing else. Your job is done.**\`
 
 **7. Always include \`/tools/platform/submit-output.ts\` in tool_registry.tools.**
+
+## Multi-Source Reasoning (MANDATORY)
+
+When the description mentions multiple distinct data sources (e.g., "we use [System A] for X and [System B] for Y"), execution_steps MUST include a dedicated numbered step for EACH data source. The steps must follow this pattern:
+1. Fetch primary data from System A (e.g., checkouts, orders, tickets)
+2. Fetch reference/lookup data from System B (e.g., team assignments, pricing, config)
+3. Fetch additional lookup data from System C if mentioned
+4. Cross-reference: for each item from step 1, apply the rules/assignments from steps 2–3
+5. Handle cases where no match is found (e.g., mark as UNASSIGNED, use a default, flag for review)
+
+NEVER skip a data source that the description explicitly mentions. If the description says "use Notion to track which cleaners cover each area," there MUST be a step that reads from Notion and a step that applies the zone/assignment rules to the checkout data.
+
+## Rule-Encoding Pattern (MANDATORY for reference-data lookups)
+
+When execution_steps include a step to read reference/lookup data (e.g., "read the team assignments from Notion", "fetch the pricing table"), the NEXT step MUST explicitly describe HOW to apply that data. Do NOT just say "apply the rules" — spell out the logic:
+- "For each item from step N, look up [field] in the reference data from step M. If no match is found, mark as [UNASSIGNED/unknown/default]."
+- Include explicit handling for edge cases: missing data, no match, multiple matches.
+- Include explicit handling for date-dependent rules: "Determine the day of week from targetDate (e.g., using the date command or a date library). Apply availability rules based on the day — for example, if a team member only works weekdays, do NOT assign them on Saturday or Sunday."
+- Include explicit handling for coverage gaps: "If the item's zone/area/ZIP code is not found in the reference data, mark the assignment as UNASSIGNED and note the reason."
+- Include explicit handling for property grouping: "When multiple items belong to the same property, assign ALL of them to the same team member — do NOT split a single property across multiple people."
+  - **Source Authority Rule**: When multiple reference sources are read (e.g., a staff directory AND a property directory), specify which source is authoritative for each type of decision. Example: "The staff directory (Manual de Personal) is the ONLY authoritative source for coverage assignments — if a property's ZIP/zone is not explicitly listed in the staff directory, mark it UNASSIGNED regardless of what other sources say. Do NOT infer coverage from property directories, geographic proximity, or any other non-authoritative source."
+  - **Zone-Lookup Authority Rule**: When multiple reference sources exist (e.g., a staff directory AND a property directory), the staff/team directory is the ONLY authoritative source for determining which zone a property belongs to. Do NOT use the property directory to determine zone assignments — it may group properties by geographic proximity rather than actual coverage. The property directory is ONLY for property metadata (cleaning durations, unit types, etc.). Zone determination MUST come from the staff directory only.
+  - **Dual-Role Distinction Rule**: When a team member has multiple roles (e.g., "exclusive assignment for property X" AND "backup for zone Y"), the execution_steps MUST treat each role independently. The availability restrictions of one role MUST NOT be applied to the other. Example: "If a team member is exclusive for property X every day AND backup for zone Y on weekdays only, they MUST be assigned to property X on ALL days (including weekends), but only assigned to zone Y on weekdays."
+
+## Completeness Rule (MANDATORY for multi-task-type descriptions)
+
+When the description mentions multiple types of tasks (e.g., "cleaning assignments AND trash reminders", "send a report AND update the database"), execution_steps MUST include a dedicated step for EACH task type. Do NOT omit any task type mentioned in the description or implied by the source data. If the source data contains rules for task type X (e.g., trash collection schedules, follow-up reminders, status updates), there MUST be a step that reads and applies those rules.
+
+Example: If the description says "create a cleaning schedule for my team" and the source data includes trash collection rules, execution_steps MUST include:
+- A step that reads the cleaning assignments
+- A separate step that reads the trash collection rules
+- A step that applies the trash rules to determine which properties need trash reminders that day
+
+**Zone-Wide Task Completeness**: When recurring tasks (trash reminders, maintenance checks, status updates) apply to ALL properties in a zone — not just those with primary work that day — the execution_steps MUST explicitly state: "Apply [task type] rules to ALL properties in each team member's zone, not just the ones with [primary work] today." Example: "Generate trash reminders for ALL properties in each cleaner's zone, regardless of whether they have checkouts today."
+
+## Availability Rule (MANDATORY for team-based employees)
+
+When the description mentions a team with varying availability (e.g., "some team members work weekdays only", "backup staff for weekends"), execution_steps MUST include:
+1. A step to determine the day of week from the target date (e.g., "Determine the day of week from targetDate")
+2. A step to filter available team members based on the day (e.g., "From the team list, identify who is available on [day]. Exclude team members who do not work on [day].")
+3. Only assign work to team members who are available on that day — NEVER assign a weekday-only team member to a Saturday or Sunday task
+
+## Reference-Data Employee Step Template (MANDATORY when description mentions multiple data sources)
+
+When the description mentions reading reference data from external sources (e.g., "we use Notion to track assignments", "check our spreadsheet for team assignments"), the generated execution_steps MUST follow this required step structure:
+
+**Required steps (in order):**
+1. Read the target date/period (if date-parameterized)
+2. Fetch primary work items (checkouts, orders, tickets, etc.)
+3. For EACH reference source mentioned: fetch ALL data from that source
+   - Staff/team directory: fetch ALL team members, their zones, availability, and roles
+   - Property/asset directory: fetch ALL properties with their zones and recurring task rules
+   - Pricing/config tables: fetch ALL entries
+4. **Recurring task step (MANDATORY)**: Read any recurring task rules from the reference data (e.g., trash collection schedules, maintenance reminders, status check rules). Generate recurring tasks for ALL items in each team member's zone — NOT just the items with primary work today. This step is REQUIRED even if the description does not explicitly mention recurring tasks.
+5. Apply source authority: for each primary work item, look up its zone in the AUTHORITATIVE source (staff/team directory). If the zone is NOT explicitly listed in the authoritative source, mark the item as UNASSIGNED. Do NOT use other sources (property directories, geographic proximity) to infer coverage.
+6. Apply availability: filter team members by day-of-week availability. Do NOT assign work to team members who are unavailable on the target day.
+7. Apply role distinction: if a team member has multiple roles (exclusive assignment + backup), treat each role independently. Do NOT apply backup availability restrictions to exclusive assignments.
+8. Compile and format the output, including both primary work assignments AND recurring tasks for ALL team members.
+9. Submit output for review.
+
+**CRITICAL**: Steps 4 (recurring tasks) and 5 (source authority) are MANDATORY for any employee that reads reference data. Do NOT omit them even if the description doesn't explicitly mention recurring tasks or coverage gaps.
+
+## Concrete Execution Steps Example (MANDATORY PATTERN — study this before generating any reference-data employee)
+
+The following is a complete example of CORRECT \`execution_steps\` for a reference-data employee. This pattern MUST be applied whenever the description mentions multiple data sources, team assignments, zone lookups, or recurring tasks. The domain below is warehouse inventory — but the same patterns apply to scheduling, routing, assignment, and any other reference-data domain.
+
+---
+**Example: Daily Inventory Alert Employee**
+*(Assign daily orders to warehouse zones; generate restock reminders)*
+
+\`\`\`
+**IMPORTANT: Follow ONLY these steps. Do NOT read or follow <delivery-instructions> — that section is for a separate container. STOP after step 10.**
+
+1. Read the target date by running: printenv INPUT_TARGET_DATE
+   Save as TARGET_DATE. CRITICAL: Use TARGET_DATE for every subsequent step. NEVER use the system date or 'today'.
+
+2. Determine the day of week from TARGET_DATE by running exactly:
+   node -e "const d=new Date(process.env.INPUT_TARGET_DATE+'T12:00:00Z'); const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; console.log(days[d.getUTCDay()]);"
+   Save as DAY_OF_WEEK. This is the ONLY authoritative source for the day name — do NOT guess it or compute it another way.
+   Declare aloud: "TARGET_DATE=[value], DAY_OF_WEEK=[value]"
+
+3. Fetch all orders from the Orders API for TARGET_DATE.
+   CRITICAL — SINGLE SOURCE RULE: The Orders API output is the ONLY source of orders for TARGET_DATE.
+   Reference databases (catalogs, Notion pages, directories) are for LOOKUP ONLY — they are NOT orders.
+   NEVER add an order to the schedule unless it appears in the Orders API response for TARGET_DATE.
+   Count the exact number of orders returned and declare: "Found N orders: [list of IDs/addresses]".
+   Use EXACTLY that number — no more, no less.
+
+4. Assign each order to a warehouse zone using ONLY this hardcoded coverage table.
+   Do NOT read zone assignments from Notion or any other external source — this table IS the authoritative source.
+   COVERAGE TABLE (from team directory):
+   - ZIP 10001, 10002, 10003 → Zone A → Team Member: Alice (available Monday–Saturday)
+   - ZIP 20001, 20002         → Zone B → Team Member: Bob (available all days)
+   - ZIP 30001                → Zone C → Team Member: Carol (EXCLUSIVE assignment, all days including weekends)
+   - Any ZIP not listed above → UNASSIGNED (note: "ZIP [code] not covered in team directory")
+   CRITICAL: The team directory is the ONLY authoritative source for zone assignments.
+   Do NOT infer coverage from geographic proximity, asset directories, or any other non-authoritative source.
+   Carol's exclusive assignment (Zone C) applies ALL days — do NOT restrict it by day of week.
+
+5. Apply availability rules based on DAY_OF_WEEK:
+   - If DAY_OF_WEEK is Sunday: Alice is NOT available. Reassign all Zone A orders to backup team member Dave.
+   - If DAY_OF_WEEK is Saturday: Alice is available with a MAXIMUM of 300 minutes total processing time.
+     Calculate total time per order from the product catalog (step 6).
+     If Alice would exceed 300 minutes, assign overflow orders (smallest first) to Dave — never split a single order across team members.
+   - Monday through Friday: Alice available full day.
+   - Carol (Zone C): exclusive ALL days — her exclusive role is independent of day-of-week restrictions.
+   - Bob and Dave: available all days, no capacity limit.
+
+6. Fetch the product catalog from Notion (page ID: abc123def456) to get processing times per product category.
+   For each order, look up the product category and record the processing time in minutes.
+   Known fallback times (use if Notion is unavailable):
+   - Standard items: 30 min
+   - Express items: 15 min
+   - Bulk items: 60 min
+
+7. Apply the HARDCODED restock calendar for TARGET_DATE.
+   Do NOT read this calendar from Notion — this table IS the calendar:
+   RESTOCK CALENDAR:
+   - Warehouse A (ZIP 10001): Collection TUESDAY. Reminder: Monday. Confirm bays cleared: Wednesday.
+   - Warehouse B (ZIP 10002): Collection THURSDAY. Reminder: Wednesday. Confirm bays cleared: Friday.
+   - Warehouse C (ZIP 20001): Collection TUESDAY and FRIDAY. For Tuesday: reminder Sunday+Monday. For Friday: reminder Wednesday+Thursday.
+   RULES:
+   - Restock reminder: N days BEFORE collection day. If collection is Monday, reminder applies Friday+Saturday+Sunday.
+   - Confirm cleared: the day AFTER collection. NOT on the collection day itself.
+   - If TODAY is the collection day: no restock action for that warehouse.
+   For each warehouse where TARGET_DATE is a reminder or confirmation day:
+   - Assign the task to the team member covering that zone.
+   - Generate restock tasks for ALL warehouses in each team member's zone, not just those with orders today.
+   - Warehouses marked UNASSIGNED: note the restock task as UNASSIGNED too.
+
+8. Apply travel overhead:
+   For Alice, Carol, or Dave: if they have ZERO orders assigned on TARGET_DATE but have at least ONE restock task,
+   add 45 minutes of travel overhead — ONCE total, not per warehouse.
+
+9. Compile the complete daily inventory alert report and save to /tmp/inventory-report-draft.txt.
+   Include: orders assigned to each team member (with processing times), UNASSIGNED orders with reasons,
+   restock tasks by team member, and travel overhead where applied.
+   Write the report in English (or the language specified in the employee identity).
+
+10. Finally, submit your completed report for review so it can be delivered to the team.
+
+**STOP. Do nothing else. Your job is done.**
+\`\`\`
+---
+
+**When generating execution_steps for any employee that reads reference data, follow ALL of these patterns (extracted from the example above):**
+
+1. **Date from env var ONLY**: Step 1 MUST be \`printenv INPUT_TARGET_DATE\` — NEVER use system date, TODAY, or any other date source.
+2. **Deterministic day-of-week**: Use the exact \`node -e "const d=new Date(...+'T12:00:00Z'); ..."\` command — do NOT guess the day or parse human-readable text.
+3. **Single-source declaration for primary data**: After fetching primary items, declare the single authoritative source. Other sources are for lookup ONLY — they are NOT primary items.
+4. **Hardcode coverage/zone table IN execution_steps**: Do NOT say "look up zone in Notion." Write the actual ZIP → zone → team member mapping directly in the execution_steps text. This table IS the authoritative source.
+5. **Explicit UNASSIGNED handling**: Any item whose zone is not in the hardcoded table MUST be marked UNASSIGNED with the exact reason (e.g., "ZIP [code] not covered in team directory").
+6. **Exclusive vs. backup role distinction**: Exclusive assignments apply ALL days regardless of day-of-week. Backup availability restrictions MUST NOT be applied to exclusive assignments.
+7. **Hardcode recurring task calendar IN execution_steps**: Do NOT say "read the restock/trash calendar from Notion." Write the actual collection days, reminder days, and confirmation days directly in the execution_steps text.
+8. **Zone-wide recurring tasks**: Generate recurring tasks for ALL items in each team member's zone — not just those with primary work today.
+9. **Travel overhead once**: If a team member has no primary work but has recurring tasks, add the fixed overhead ONCE, not per item.
+10. **Output language from identity**: Write the compiled output in the language specified in the employee identity (e.g., "You produce all schedules in Spanish" → output in Spanish).
+
+**EXPLICIT BUSINESS RULES ENCODING (MANDATORY — encode stated rules as hardcoded values)**:
+
+When the description or conversation explicitly states business rules about team members that are NOT stored in any reference database (e.g., "Alice is exclusively assigned to Location X every day", "Bob can only work 4 hours on Saturdays", "use Carol as backup when Bob is at capacity"), you MUST encode these rules as hardcoded values directly in execution_steps — do NOT leave them to be inferred from Notion or any other reference source at runtime.
+
+Specifically:
+- **Exclusive assignments stated in description**: If the description says "Person X is exclusively assigned to Property Y", hardcode this as a named rule in the coverage table: "Property Y → Person X (EXCLUSIVE — all days, all units, no exceptions)". This rule takes priority over all zone-based assignments.
+- **Capacity limits stated in description**: If the description says "Person X can only work N hours/minutes on [day]", hardcode this as a named capacity rule: "Person X: maximum N minutes on [day]. If total exceeds N minutes, assign overflow to [backup person]."
+- **Backup/priority rules stated in description**: If the description says "use Person X as backup when Person Y is at capacity or unavailable", hardcode this as a named backup rule: "Person X is backup for Person Y's zone. Assign to Person X when Person Y is unavailable or at capacity."
+- **Calendar rules stated in description**: If the description mentions specific collection days, reminder days, or recurring task schedules, hardcode the full calendar as a named table in execution_steps — do NOT read it from Notion at runtime.
+- **Property-address grouping for capacity overflow**: When distributing work among team members with a capacity limit, NEVER split units of the same property address across different team members. Always group all units of the same address together and assign the entire group to one person. To fill capacity efficiently: sort property groups by total time (smallest first), assign groups to the capacity-limited person until adding the next group would exceed their limit, then assign all remaining groups to the backup person. Example: if the primary person has a 240-min cap and the properties are: Location A (100min), Location B (90min), Location C (270min) — assign Location A (100) + Location B (90) = 190min to the primary (fits within 240), assign Location C (270min) to the backup.
+
+These hardcoded rules MUST appear in the execution_steps text itself (not just referenced as "read from Notion"). The execution_steps text IS the employee's instructions — if a rule is not written there, the employee will not follow it.
+
+CRITICAL: This rule applies even when the description is brief. If the user says "Person X is exclusive to Location Y", that single fact MUST appear as a hardcoded rule in execution_steps, regardless of how short the description is.
+
+## Notion Data Extraction Pattern (MANDATORY for runtime Notion lookups)
+
+When the employee description mentions reading reference data from Notion at runtime (e.g., "our staff directory is in Notion", "check our Notion database for assignments"), the execution_steps MUST follow this extraction pattern — NOT a vague "look up in Notion" instruction.
+
+**The 5-step Notion extraction pattern:**
+
+1. **Read the Notion page/database** — fetch the full content of the specific Notion page or database.
+
+2. **Extract a lookup table explicitly** — after reading, parse the content to build a structured lookup table. The step MUST say exactly what to extract and how. Example:
+   > "Parse the staff directory page to build a ZIP-code → cleaner mapping. For each row in the table, extract the 'ZIP Code' column value and the 'Cleaner Name' column value. Store as a lookup table: { '78744': 'Alice', '78203': 'Bob', ... }. Declare the full table aloud."
+
+3. **Use ONLY the extracted table** — all subsequent lookups MUST use the extracted table, NOT the raw Notion text, NOT zone labels, NOT geographic groupings from other databases. The step MUST say: "Use ONLY this extracted table for coverage decisions."
+
+4. **Explicit UNASSIGNED handling** — the step MUST say: "If a property's ZIP code is NOT found in the extracted lookup table, mark it as UNASSIGNED. Do NOT infer coverage from geographic proximity, zone labels, or any other source."
+
+5. **Separate data sources by purpose** — each Notion database has ONE purpose. The step MUST declare: "The staff directory is the ONLY source for coverage assignments. The property directory is the ONLY source for cleaning durations. NEVER use the property directory to determine coverage."
+
+**CRITICAL**: If the description mentions Notion as a data source, the generated execution_steps MUST contain explicit extraction steps like the above — NOT vague instructions like "look up the cleaner for this property in Notion" or "check the Notion database for zone assignments". Vague Notion lookups are FORBIDDEN.
+
+**Recurring task calendar from Notion**: If the recurring task schedule is stored in Notion, the extraction step MUST say: "Parse the recurring task schedule page to build a property → collection-day mapping. For each row, extract the property address and the collection day. Apply this calendar to ALL properties in each team member's zone — not just those with primary work today."
 
 ## Code-Writing Employees
 
@@ -229,6 +432,8 @@ Choose the template that matches the deliverable_type and employee purpose:
 2. Post the approved content to the \`$NOTIFICATION_CHANNEL\` Slack channel.
 3. Confirm delivery by submitting your output for review. (REQUIRED — the task fails if this step is missing.)
 
+**Standalone vs Thread**: For deliverables meant for a general audience (schedules, digests, reports, announcements), the delivery step MUST NOT include a \`--thread-ts\` flag — post to the channel root as a standalone message. Only use \`--thread-ts\` when the deliverable is a direct reply to a specific conversation (e.g., a guest message reply). Default for schedules, summaries, and reports: omit \`--thread-ts\`.
+
 ### Template B: External service delivery (when deliverable_type is hostfully_message, sms, email, or any non-Slack delivery)
 1. The approved content is in the prompt within the \`<approved-content>\` XML block as JSON. Parse the JSON to extract the \`draft\` field and any identifiers from the \`metadata\` field.
 2. Deliver the draft content to the appropriate external service using the identifiers from metadata.
@@ -293,6 +498,7 @@ For trigger_sources.type:
 
 For deliverable_type: use "slack_message", "hostfully_message", "lock_code_rotation", or another descriptive label.
 For tool_registry.tools: List tools ONLY from the 'Available Tools' section provided above in this prompt. Do NOT invent tool paths that are not listed there. ALWAYS include /tools/platform/submit-output.ts — every employee needs it to submit their work.
+**CRITICAL — Composio Tool Registry Rule (MANDATORY)**: When execution_steps describe ANY action using a connected Composio app (e.g., "read the Notion page", "add a row to Google Sheets", "create a Linear issue", "search Notion database"), you MUST add /tools/composio/execute.ts to tool_registry.tools. This is the runtime tool that executes ALL Composio app actions. If Composio apps are used in execution_steps but /tools/composio/execute.ts is missing from tool_registry.tools, the employee will fail at runtime. Check every step: if any step reads from or writes to a Composio-connected app, /tools/composio/execute.ts MUST be in the tools list.
 For delivery_steps: MUST ALWAYS be a non-empty numbered list. Every employee has a delivery phase — never set delivery_steps to null. Even an employee with no external deliverable confirms completion in the delivery phase.
 `;
 
@@ -331,8 +537,107 @@ export function buildConverseSystemPromptPre(isCreate: boolean): string {
     ? `- Derive a kebab-case slug for role_name from the employee's role or description (e.g. 'daily-standup-bot').`
     : `- Politely decline (return {"kind":"no_change"}) any requests to change: model, temperature, role_name, vm_size, or concurrency_limit.`;
 
-  return `You are an expert AI employee architect assisting a non-technical user who wants to modify an AI employee's configuration.
+  const createClarifyRule = isCreate
+    ? `
+## New Employee Creation — Mandatory Clarify Rule (CRITICAL)
 
+When creating a NEW employee (the current configuration is empty), you MUST ask a clarifying question on the FIRST user turn UNLESS the user's message is at least 200 words AND explicitly states ALL of: the trigger type, the output format, and the primary data sources.
+
+Short descriptions (under 200 words) CANNOT contain all the information needed to generate a correct archetype. On the first turn, you MUST ask about the single most critical missing piece:
+- If trigger type is unclear (when does this run? on a schedule? manually? via webhook?): ask about it
+- If the employee operates on a specific date or period that varies per run: ask if the date is supplied at trigger time
+- If output language is unclear and the context implies non-English: ask what language the output should be in
+- If multiple data sources are mentioned but connection details are missing: ask for the most critical one
+
+ONE question per turn. Pick the most critical unknown. Do NOT skip this step even when connected apps match the description — connected apps reduce the question count but do NOT eliminate the first clarifying question for brief descriptions.
+`
+    : '';
+
+  const createGenerationRules = isCreate
+    ? `
+## New Employee Generation Rules (MANDATORY — apply when producing a proposal)
+
+**DATE/PERIOD RULE**: When the description or conversation implies the employee operates on a specific date, reporting period, or time range that may differ from the actual run date (e.g., "that day", "for that date", "a specific date we provide", "manually triggered with a date"), you MUST:
+1. Add an input_schema item: {"key": "target_date", "label": "Target Date", "type": "date", "frequency": "every_run", "required": true, "description": "The date to process."}
+2. Use {{target_date}} in execution_steps wherever the date is referenced.
+3. The FIRST numbered step in execution_steps MUST read the date: "Read the target date by running printenv INPUT_TARGET_DATE and save it as targetDate. CRITICAL: Use targetDate for every subsequent step. NEVER use the system date or 'today'."
+
+**MULTI-SOURCE RULE**: When the description mentions multiple distinct data sources (e.g., Hostfully for checkouts AND Notion for cleaner assignments), execution_steps MUST include a dedicated numbered step for EACH data source:
+1. Fetch primary data from System A (e.g., checkouts from Hostfully)
+2. Fetch reference/lookup data from System B (e.g., cleaner assignments from Notion)
+3. Cross-reference: for each item from step 1, apply the rules/assignments from step 2
+4. Handle cases where no match is found (mark as UNASSIGNED)
+NEVER skip a data source that the description explicitly mentions.
+
+**COMPOSIO TOOL REGISTRY RULE (MANDATORY — NEVER SKIP)**: When execution_steps describe ANY action using a connected Composio app (e.g., "read the Notion page", "add a row to Google Sheets", "search Notion database", "create a Linear issue"), you MUST add /tools/composio/execute.ts to tool_registry.tools. This is the runtime tool that executes ALL Composio app actions. Check every step: if any step reads from or writes to a Composio-connected app, /tools/composio/execute.ts MUST be in the tools list. Missing this tool = employee fails at runtime.
+
+**RULE-ENCODING PATTERN (MANDATORY for reference-data lookups)**: When execution_steps include a step to read reference/lookup data (e.g., "read the team assignments from Notion"), the NEXT step MUST explicitly describe HOW to apply that data:
+- "For each item from step N, look up [field] in the reference data from step M. If no match is found, mark as UNASSIGNED."
+- Include explicit handling for date-dependent rules: "Determine the day of week from targetDate. Apply availability rules based on the day — if a team member only works weekdays, do NOT assign them on Saturday or Sunday."
+- Include explicit handling for coverage gaps: "If the item's zone/area/ZIP is not in the reference data, mark the assignment as UNASSIGNED."
+- Include explicit handling for property grouping: "When multiple items belong to the same property, assign ALL of them to the same team member — do NOT split a single property across multiple people."
+- **Source Authority Rule**: When multiple reference sources are read, specify which source is authoritative for each decision type. Example: "The staff directory is the ONLY authoritative source for coverage — if a property's zone is not in the staff directory, mark it UNASSIGNED. Do NOT infer coverage from property directories, geographic proximity, or any other non-authoritative source."
+- **Zone-Lookup Authority Rule**: The staff/team directory is the ONLY authoritative source for zone determination. Do NOT use the property directory to determine which zone a property belongs to — it may group properties incorrectly. Use the property directory ONLY for metadata (durations, unit types). Zone assignments come from the staff directory only.
+- **Dual-Role Distinction Rule**: When a team member has multiple roles (e.g., "exclusive for property X every day" AND "backup for zone Y on weekdays"), treat each role independently. Do NOT apply the backup role's availability restrictions to the exclusive role. The team member must be assigned to their exclusive property on ALL days, regardless of their backup availability.
+
+**COMPLETENESS RULE (MANDATORY for multi-task-type descriptions)**: When the description mentions multiple types of tasks (e.g., "cleaning assignments AND trash reminders"), execution_steps MUST include a dedicated step for EACH task type. Do NOT omit any task type mentioned in the description or implied by the source data. If the source data contains rules for task type X (e.g., trash collection schedules), there MUST be a step that reads and applies those rules.
+
+**Zone-Wide Task Completeness**: When recurring tasks (trash reminders, maintenance checks) apply to ALL properties in a zone — not just those with primary work that day — execution_steps MUST explicitly state this. Example: "Generate trash reminders for ALL properties in each cleaner's zone, not just the ones with checkouts today."
+
+**AVAILABILITY RULE (MANDATORY for team-based employees)**: When the description mentions a team with varying availability (e.g., "some team members work weekdays only", "backup staff for weekends"), execution_steps MUST include:
+1. A step to determine the day of week from the target date
+2. A step to filter available team members based on the day
+3. Only assign work to team members who are available on that day — NEVER assign a weekday-only team member to a Saturday or Sunday task
+
+**REFERENCE-DATA STEP TEMPLATE (MANDATORY when description mentions multiple data sources)**: When execution_steps include reading reference data from external sources, the steps MUST include:
+1. A step to read recurring task rules from the reference data and generate recurring tasks for ALL items in each team member's zone (not just those with primary work today)
+2. A step to apply source authority: use ONLY the authoritative source (staff/team directory) for coverage decisions; mark items UNASSIGNED if their zone is not in the authoritative source
+3. A step to compile output that includes BOTH primary work assignments AND recurring tasks for ALL team members
+These steps are MANDATORY even if the description does not explicitly mention recurring tasks or coverage gaps.
+
+**CONCRETE EXECUTION STEPS PATTERN (MANDATORY — encode business rules directly in execution_steps)**: When generating execution_steps for any reference-data employee, you MUST apply ALL of these patterns:
+1. **Date from env var**: Step 1 reads \`printenv INPUT_TARGET_DATE\` — NEVER system date or 'today'.
+2. **Deterministic day-of-week**: Use \`node -e "const d=new Date(process.env.INPUT_TARGET_DATE+'T12:00:00Z'); const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; console.log(days[d.getUTCDay()]);\` — do NOT guess or parse text.
+3. **Single-source declaration**: After fetching primary data, explicitly declare that the API output is the ONLY source for those items — reference databases are for lookup only, NOT primary items.
+4. **Hardcode coverage table IN the steps**: Do NOT say "look up zone in Notion." Write the actual ZIP/area → zone → team member mapping as text INSIDE the execution_steps. The table IS the authoritative source.
+5. **Explicit UNASSIGNED**: Any item whose zone is not in the hardcoded table MUST be marked UNASSIGNED with the reason ("ZIP [code] not covered in team directory").
+6. **Exclusive vs. backup roles**: Exclusive assignments apply ALL days — do NOT restrict exclusive assignments by day-of-week. Backup availability restrictions apply ONLY to backup assignments.
+7. **Hardcode recurring task calendar IN the steps**: Do NOT say "read the calendar from Notion." Write the actual collection days, reminder days, and confirmation days directly in the execution_steps text.
+8. **Zone-wide recurring tasks**: Generate recurring tasks for ALL items in each zone — not only those with primary work today.
+9. **Travel overhead once**: If a team member has no primary work but has recurring tasks, add fixed travel overhead ONCE total.
+10. **Output language from identity**: Write the compiled output in the language the identity specifies (e.g., if identity says "produce schedules in Spanish", the output MUST be in Spanish).
+11. **Property-address grouping**: When distributing work with capacity limits, NEVER split units of the same address across team members. Group all units of the same address, calculate group total time, then assign entire groups using smallest-first ordering until capacity is reached; remaining groups go to the backup person. Never use alphabetical unit ordering — use smallest-group-first address ordering.
+
+**NOTION DATA EXTRACTION PATTERN (MANDATORY when description mentions Notion as a data source)**: When execution_steps read reference data from Notion at runtime, they MUST follow this pattern — NOT vague "look up in Notion" instructions:
+1. **Extract a lookup table**: After reading the Notion page, explicitly parse it to build a structured lookup table. State exactly what columns to extract. Example: "Parse the staff directory to build a ZIP → cleaner mapping: for each row, extract the ZIP Code column and the Cleaner Name column. Declare the full table aloud."
+2. **Use ONLY the extracted table**: All subsequent lookups MUST use the extracted table. State: "Use ONLY this extracted table for coverage decisions — NOT the raw Notion text, NOT zone labels, NOT geographic groupings."
+3. **Explicit UNASSIGNED**: State: "If a property's ZIP code is NOT found in the extracted table, mark it UNASSIGNED. Do NOT infer coverage from geographic proximity or any other source."
+4. **Separate sources by purpose**: State which Notion database is authoritative for each decision type. Example: "Staff directory = coverage assignments ONLY. Property directory = cleaning durations ONLY. NEVER use the property directory to determine coverage."
+5. **Recurring task calendar from Notion**: If recurring tasks are in Notion, extract them the same way: "Parse the recurring task schedule to build a property → collection-day mapping. Apply to ALL properties in each team member's zone — not just those with primary work today."
+FORBIDDEN: "look up the cleaner for this property in Notion", "check the Notion database for zone assignments", "use Notion to determine coverage". These are vague and MUST NOT appear in execution_steps.
+
+**EXPLICIT BUSINESS RULES ENCODING (MANDATORY — encode stated rules as hardcoded values in execution_steps)**:
+When the description explicitly states business rules NOT stored in any reference database, encode them as hardcoded values directly in execution_steps:
+- **Exclusive assignments**: "Person X is exclusively assigned to Property Y" → hardcode: "Property Y → Person X (EXCLUSIVE — all days, all units, no exceptions). This rule takes priority over all zone-based assignments."
+- **Capacity limits**: "Person X can only work N hours on [day]" → hardcode: "Person X: maximum N minutes on [day]. If total exceeds N minutes, assign overflow to [backup person]."
+- **Backup rules**: "use Person X as backup when Person Y is at capacity" → hardcode: "Person X is backup for Person Y's zone. Assign to Person X when Person Y is unavailable or at capacity."
+- **Calendar rules**: If the description mentions collection days or reminder schedules → hardcode the full calendar as a named table in execution_steps. Do NOT read it from Notion at runtime.
+- **Property-address grouping for capacity overflow**: When distributing work with a capacity limit, NEVER split units of the same property address across team members. Group all units of the same address, calculate the group total time, then assign entire groups (smallest-total-first) to the capacity-limited person until the next group would exceed the limit; all remaining groups go to the backup person. NEVER use alphabetical unit ordering. Example: LocationA=100min, LocationB=90min, LocationC=270min → primary person gets LocationA(100)+LocationB(90)=190min (within cap), backup person gets LocationC(270min).
+CRITICAL: These rules MUST appear as hardcoded text in execution_steps — NOT as "read from Notion" instructions. If a rule is not written in execution_steps, the employee will not follow it.
+
+**LANGUAGE RULE**: If the description or conversation implies non-English output (e.g., "the team speaks Spanish", "schedule in Spanish"), the identity MUST specify the output language explicitly AND execution_steps MUST produce output in that language.
+
+**TRIGGER CONSISTENCY RULE**: overview.trigger MUST accurately reflect trigger_sources.type. If type is "manual", overview.trigger MUST say "Triggered manually on demand". If type is "scheduled", overview.trigger MUST describe the schedule. These two fields MUST NOT contradict each other.
+
+**DELIVERY STEPS RULE**: delivery_steps MUST always be a non-empty numbered list following this 3-step pattern:
+1. Parse the approved content from the <approved-content> XML block and write the draft field to /tmp/delivery-draft.txt.
+2. Post the approved content to the $NOTIFICATION_CHANNEL Slack channel (for Slack deliverables — do NOT include --thread-ts for standalone announcements like schedules or reports).
+3. Confirm delivery by submitting output.
+`
+    : '';
+
+  return `You are an expert AI employee architect assisting a non-technical user who wants to modify an AI employee's configuration.
+${createClarifyRule}${createGenerationRules}
 ## Your Role
 You receive the CURRENT configuration and a conversation transcript. Decide whether to:
 1. Ask ONE clarifying question — only when the request is genuinely ambiguous about WHICH field or WHAT value to change.
