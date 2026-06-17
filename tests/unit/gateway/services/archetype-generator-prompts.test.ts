@@ -215,7 +215,7 @@ describe('postProcess — delivery_steps default derivation', () => {
     expect(typeof result.delivery_steps).toBe('string');
   });
 
-  it('null-coerces a non-string delivery_steps rather than synthesizing content', async () => {
+  it('derives the default for a non-string delivery_steps (malformed → normalized → default)', async () => {
     const badDeliveryJson = JSON.stringify({
       role_name: 'bad-delivery-employee',
       identity: 'You are a test employee.',
@@ -236,7 +236,8 @@ describe('postProcess — delivery_steps default derivation', () => {
 
     const result = await gen.generate('An employee whose delivery_steps came back malformed');
 
-    expect(result.delivery_steps).toBeNull();
+    expect(typeof result.delivery_steps).toBe('string');
+    expect(result.delivery_steps).toBeTruthy();
   });
 });
 

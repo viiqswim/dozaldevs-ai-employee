@@ -196,7 +196,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
 > Implementation + verification = ONE task. EVERY task has Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Retrofit `cleaning-schedule` — move Slack-posting into a real delivery phase (VLRE)
+- [x] 1. Retrofit `cleaning-schedule` — move Slack-posting into a real delivery phase (VLRE)
 
   **What to do**:
   - Rewrite `execution_steps` so the employee BUILDS the daily cleaning schedule and writes it to a draft file, then calls `tsx /tools/platform/submit-output.ts --draft-file <path> --summary "..."` — and does NOT post to Slack directly.
@@ -246,7 +246,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES (groups with Task 2) — `fix(archetypes): give cleaning-schedule and daily-motivation real delivery phases`
 
-- [ ] 2. Retrofit `daily-motivation` — move Slack-posting into a real delivery phase (DozalDevs)
+- [x] 2. Retrofit `daily-motivation` — move Slack-posting into a real delivery phase (DozalDevs)
 
   **What to do**:
   - Rewrite `execution_steps` so the employee composes the motivational quote to a draft file and calls `submit-output --draft-file <path> --summary "..."` — and does NOT post to Slack directly.
@@ -381,7 +381,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 6. RED — generator must emit non-empty `delivery_steps`; gate must reject null/null
+- [x] 6. RED — generator must emit non-empty `delivery_steps`; gate must reject null/null
 
   **What to do**:
   - Add a failing unit test proving the generator currently CAN emit `delivery_steps: null` for a "pure utility" employee (`deliverable_type` null). Drive a raw model payload with `delivery_steps: null` + `deliverable_type: null` through `gen.generate(...)` and assert (intended GREEN) that `delivery_steps` comes back non-empty. FAILS today (postProcess only defaults when `deliverable_type` is set).
@@ -415,7 +415,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `test(archetypes): RED — generator must always emit delivery_steps`
 
-- [ ] 7. RED — integration: create with `deliverable_type: null` + empty `delivery_steps` → 400
+- [x] 7. RED — integration: create with `deliverable_type: null` + empty `delivery_steps` → 400
 
   **What to do**:
   - Add a failing integration test (DB-backed, real express app) proving the create endpoint currently ACCEPTS (201) an employee with `deliverable_type: null` + empty/absent `delivery_steps` (the null/null loophole), asserting the intended GREEN behavior (400 with a `MISSING_DELIVERY_CONFIG`-style rejection).
@@ -450,7 +450,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `test(archetypes): RED — gate must reject empty delivery_steps even when deliverable_type is null`
 
-- [ ] 8. GREEN — generator always emits non-empty `delivery_steps` + execution-vs-delivery boundary guidance
+- [x] 8. GREEN — generator always emits non-empty `delivery_steps` + execution-vs-delivery boundary guidance
 
   **What to do**:
   - In `archetype-generator.ts` `postProcess()`, derive a non-empty `delivery_steps` default whenever it is null/empty — regardless of whether `deliverable_type` is set. Reuse `DEFAULT_DELIVERY_INSTRUCTIONS` (from `output-contract-constants.ts`). Apply the SAME default on the CREATE path in `admin-archetype-converse-create.ts` (`applyCreateAllowlist`, ~L79).

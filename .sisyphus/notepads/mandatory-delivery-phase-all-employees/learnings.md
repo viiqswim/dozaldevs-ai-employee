@@ -236,3 +236,52 @@ echo "EXIT:$?" >> /tmp/f`. `| tee` would mask it (PIPESTATUS gotcha from learnin
 deliverable_type=slack_message | delivery_nonempty=t | exec_has_submit_output=t |
 exec_has_draft_file=t | exec_has_post_message=f | exec_has_ignore_guard=f |
 delivery_has_post_message=t | delivery_uses_notif_channel=t. delivery_steps len=877.
+
+## [2026-06-16] Task 8 — GREEN: generator always emits non-empty delivery_steps (COMPLETE)
+
+### The fix (3 code sites, same logic)
+
+- postProcess() (archetype-generator.ts ~L362): two-stage now. (1) malformed non-string →
+  null; (2) if null OR blank → ALWAYS DEFAULT_DELIVERY_INSTRUCTIONS, regardless of
+  deliverable_type. The `.trim().length === 0` check matters — a model could emit "" not
+  just null.
+- applyCreateAllowlist() (admin-archetype-converse-create.ts ~L78): `raw.delivery_steps ===
+null || raw.delivery_steps.trim().length === 0 ? DEFAULT : raw.delivery_steps`. Mirror of
+  postProcess.
+- Prompt (archetype-generator-prompts.ts): removed BOTH null carve-outs (SYSTEM_PROMPT_POST
+  L281 AND the SYSTEM_PROMPT_PRE "Set to null ONLY if approval_required is false..." line).
+  Added "## What Goes Where" section (defs + 1 contrast + anti-pattern).
+
+### CRITICAL gotcha — converse-create baseline comparison must use strippedBaseline
+
+- The empty-baseline `no_change` test (admin-archetype-converse-create.test.ts L278) sends a
+  proposal identical to the empty baseline (identity:'', delivery_steps:null, etc.) and
+  expects {kind:no_change}.
+- The route's response.baseline runs through applyCreateAllowlist (so its delivery_steps
+  becomes the DEFAULT), but the changed_fields loop compared against the RAW baseline
+  (delivery_steps:null). After my fix, proposal.delivery_steps also becomes DEFAULT →
+  mismatch with raw null → delivery_steps falsely flagged "changed" → test would BREAK.
+- FIX: hoist `const strippedBaseline = applyCreateAllowlist(baseline)` once; use it in BOTH
+  the changed_fields comparison loop AND response.baseline. Now baseline+proposal derive the
+  same default → no false diff. Test stays green. This is the non-obvious coupling of T8.
+
+### Case (b) deletion (not just update)
+
+- Plan said "update OR delete (b)". Chose DELETE: case (b) and case (d) drive the IDENTICAL
+  null/null input. (b) asserted toBeNull (legacy), (d) asserts non-empty (new). Keeping both
+  = contradictory tests on same input. (d) supersedes (b) verbatim. Also fixed the stale
+  file-header RED notice (claimed a/c fail — they pass) and (d)'s inline ref to deleted (b).
+
+### EDIT path deliberately untouched
+
+- archetype-edit-helpers.test.ts L108 `delivery_steps toBeNull` is CORRECT and stays:
+  mapArchetypeRowToConfig faithfully reads an existing DB row (EDIT path). The abstraction
+  is GENERATE + converse-create CREATE branch ONLY. Did not touch refine()/propose-edit.
+
+### Verification
+
+- Affected suite: 80 passed (delivery + prompts + converse-create + golden).
+- Broader archetype suite: 52 passed (propose-edit + edit-helpers + enforce-gate +
+  patch-identity). pnpm build EXIT_CODE:0.
+- Golden fixture (system-prompt.txt) regenerated — prompt text changed so this is mandatory,
+  else golden-prompts.test.ts byte-compare fails on next run.

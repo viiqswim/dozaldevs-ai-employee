@@ -359,10 +359,14 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     result.identity = '';
   }
 
-  const rawDeliverySteps = result.delivery_steps;
-  if (rawDeliverySteps !== null && typeof rawDeliverySteps !== 'string') {
+  if (result.delivery_steps !== null && typeof result.delivery_steps !== 'string') {
     result.delivery_steps = null;
-  } else if (rawDeliverySteps === null && result.deliverable_type) {
+  }
+  // Always derive a default — even when deliverable_type is null. Closing this null/null
+  // case is the point: it removes the escape hatch so every employee gets a delivery phase
+  // and can be switched to require approval later. Do NOT revert to null-passthrough.
+  const normalizedDeliverySteps = result.delivery_steps as string | null;
+  if (normalizedDeliverySteps === null || normalizedDeliverySteps.trim().length === 0) {
     result.delivery_steps = DEFAULT_DELIVERY_INSTRUCTIONS;
   }
 
