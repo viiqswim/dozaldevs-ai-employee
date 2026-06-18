@@ -482,6 +482,14 @@ When `false` (default), all tools are available — byte-identical to pre-enforc
 
 **Rule**: Do NOT enable `enforce_tool_registry` on any employee without first validating that every path in its `tool_registry` resolves to a real file with a descriptor.
 
+### Composio Tool Auto-Attach (postProcess)
+
+`postProcess()` in `src/gateway/services/archetype-generator.ts` runs for ALL generation paths (`generate`, `refine`, `converse`). After normalizing tool paths it scans the generated `execution_steps` for Composio-app keywords (`notion`, `google sheet`, `gmail`, `linear`, `jira`, `airtable`, etc.) and, if any match, guarantees `/tools/composio/execute.ts` is present in `tool_registry.tools`. This mirrors the existing GitHub-tool auto-injection and exists because the LLM unreliably includes the Composio tool on its own — without it, an employee that reads Notion would be generated without the runtime tool and fail. The check is self-gating: the generator prompt only emits Composio-app steps when apps are connected, so keyword detection on the steps is sufficient (no tenant-connection state is threaded into `postProcess`).
+
+### Shared Authoring Rules Constant
+
+The domain authoring rules (multi-source/live-fetch, closed-allowlist coverage with its REQUIRED VERBATIM PHRASE, source-identifier fidelity, runtime reference-data extraction, backup-fallback, `{{key}}` emission, the Composio tool-registry rule) are defined ONCE as `export const ARCHETYPE_AUTHORING_RULES` in `src/gateway/services/prompts/archetype-generator-prompts.ts` and composed into BOTH `SYSTEM_PROMPT_PRE` (one-shot) and `buildConverseSystemPromptPre` (wizard) via `${ARCHETYPE_AUTHORING_RULES}`. This makes cross-path parity structural — the rules cannot drift between paths. `tests/unit/generator-prompts-parity.test.ts` guards the markers; `tests/unit/golden-prompts.test.ts` guards byte-level prompt output. When changing a shared rule, edit the constant once; do NOT duplicate rule text into either prompt.
+
 ### Archetype Editing Shared Helpers
 
 `mapArchetypeRowToConfig`, `validateProposalFields`, and `resolveToolPaths` live in `src/gateway/lib/archetype-edit-helpers.ts`. All are used by `propose-edit`, `converse-create`, and the PATCH route. Import from there — do not inline or duplicate these functions in route handlers.
