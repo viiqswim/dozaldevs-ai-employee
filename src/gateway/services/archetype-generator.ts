@@ -18,6 +18,7 @@ import {
   CONVERSE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
+  PLUMBING_JUDGE_SYSTEM_PROMPT,
 } from './prompts/archetype-generator-prompts.js';
 import type {
   ArchetypeGenerationCallRepository,
@@ -529,6 +530,74 @@ export class ArchetypeGenerator {
       await this.repo.record(input);
     } catch (err) {
       log.warn({ err }, 'Failed to persist archetype generation call');
+    }
+  }
+
+  async judgeProseForPlumbing(
+    fields: Record<string, unknown>,
+  ): Promise<{ has_leak: boolean; fields: string[]; snippets: string[] }> {
+    const SAFE = { has_leak: false, fields: [] as string[], snippets: [] as string[] };
+
+    const serializeOverview = (overview: unknown): Record<string, unknown> => {
+      if (!overview || typeof overview !== 'object') return {};
+      const ov = overview as Record<string, unknown>;
+      const result: Record<string, unknown> = {};
+      for (const key of ['role', 'trigger', 'tools_used', 'output', 'approval']) {
+        if (typeof ov[key] === 'string') result[key] = ov[key];
+      }
+      if (Array.isArray(ov['workflow'])) {
+        result['workflow'] = ov['workflow'];
+      }
+      return result;
+    };
+
+    const payload: Record<string, unknown> = {};
+    for (const key of ['identity', 'execution_steps', 'delivery_steps']) {
+      if (typeof fields[key] === 'string') payload[key] = fields[key];
+    }
+    if (fields['overview']) {
+      payload['overview'] = serializeOverview(fields['overview']);
+    }
+
+    try {
+      const result = await this.callLLMFn({
+        taskType: 'review',
+        temperature: 0,
+        responseFormat: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: PLUMBING_JUDGE_SYSTEM_PROMPT },
+          { role: 'user', content: JSON.stringify(payload) },
+        ],
+      });
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(result.content);
+      } catch (parseErr) {
+        log.warn({ err: parseErr }, 'judgeProseForPlumbing: failed to parse LLM response JSON');
+        return SAFE;
+      }
+
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        typeof (parsed as Record<string, unknown>)['has_leak'] !== 'boolean' ||
+        !Array.isArray((parsed as Record<string, unknown>)['fields']) ||
+        !Array.isArray((parsed as Record<string, unknown>)['snippets'])
+      ) {
+        log.warn({ parsed }, 'judgeProseForPlumbing: unexpected response shape from LLM');
+        return SAFE;
+      }
+
+      const verdict = parsed as { has_leak: boolean; fields: string[]; snippets: string[] };
+      return {
+        has_leak: verdict.has_leak,
+        fields: verdict.fields,
+        snippets: verdict.snippets,
+      };
+    } catch (err) {
+      log.warn({ err }, 'judgeProseForPlumbing: LLM call failed — failing open');
+      return SAFE;
     }
   }
 
