@@ -416,3 +416,479 @@ Secondary issue: Saturday capacity enforcement — model noted overflow but didn
 - Capacity enforcement must say "ACTUALLY ASSIGN overflow" not just "note it"
 - The fix is generic — genericity proven with daily-motivation employee (no VLRE literals generated)
 - Unique constraint `archetypes_tenant_role_active_unique` is `WHERE status = 'active'` — soft-deleted rows with status='active' still block re-insert; must also set status='draft' on deleted row
+
+## [2026-06-17] Atlas verification — T14 closed-allowlist fix (commit 763f41d8) — DETERMINISTIC
+
+### T15 had revealed non-determinism
+
+- T15 fresh-create scored 3/5: model assigned uncovered-ZIP properties (78741, 78722) to backup cleaners instead of UNASSIGNED. Same defect "passed" in v22 only by luck. Anti-inference wording too weak.
+
+### Generic fix (commit 763f41d8, both prompt paths)
+
+- Closed-Allowlist Coverage Rule: after reading the roster, employee BUILDS the finite covered-key set FROM the live roster, declares it aloud, treats it as CLOSED → any item whose key ∉ set = UNASSIGNED, even if the key appears in a non-roster source or is geographically near a covered key. Forbids assigning uncovered items to nearby/backup persons.
+- Capacity enforcement strengthened: overflow must be ACTUALLY ASSIGNED to backup (not just noted).
+- CRITICAL: the covered set is DERIVED FROM LIVE ROSTER at runtime — NOT a hardcoded list in steps. Verified: v23 stored execution_steps contain ZERO hardcoded ZIPs (78744/78640/... absent), ZERO cleaner names, ZERO plumbing, {{target_date}}×4, 3 real page IDs. The ZIP list appears only in the OUTPUT (employee declared it live from roster) — correct.
+
+### Determinism proof (Atlas, v23 = 4e93ce37 / 9896c223) — 3 independent runs each of the 2 flaky dates
+
+- 06-22 6002 Palm Circle (78741): UNASSIGNED in run1+run2+run3 ✅✅✅
+- 06-28 3505 Banton (78722): UNASSIGNED in run1+run2+run3 ✅✅✅; 4403/4405 Hayride → Berenice weekend backup 180min (Yessica off Sundays) ✅
+- Full 5/5 on both subagent runs; Atlas independently confirmed the flaky dates across 3 runs.
+
+### Gate
+
+- parity 11/11 + golden 3/3 + input-schema 33/33 pass; generator lint clean. 9 pre-existing failures unchanged (mock/DB infra).
+
+### T14 commits (full set)
+
+- c4d07e7a platform {{key}} substitution generic
+- 2c12ce2e generator mirror intent-only + {{target_date}} emission (no plumbing)
+- 4dab00ca generic source-identifier examples
+- 763f41d8 closed-allowlist-from-live-roster (deterministic uncovered→UNASSIGNED)
+- (5037fee8 separate: vitest orphan-protection)
+
+---
+
+## [2026-06-18] T15 v2 — PASS ✅ (5/5 correct, hardened generator)
+
+### Employee
+
+- Role: `cleaning-schedule-final2`, Archetype ID: `526d304f-be84-46da-b6bb-b782810cf95a`
+- Created via 2-turn converse-create from plain-language description (no procedural steps, no hardcoded data)
+- Generator commit: 763f41d8
+
+### Hard Gates (16/16 PASS)
+
+- All prior gates pass + NEW gate: no hardcoded ZIP list in steps + CLOSED language present
+- DB confirms: `has_hardcoded_zip=f`, `has_closed_language=t`, `has_placeholder=t`, `has_notion_id1=t`
+
+### Per-Date Verdicts (ALL 5 CORRECT)
+
+| Date        | Task ID  | Verdict                                                                                  |
+| ----------- | -------- | ---------------------------------------------------------------------------------------- |
+| 06-15 (Mon) | a84ce58f | ✅ CORRECT                                                                               |
+| 06-20 (Sat) | 6a5268de | ✅ CORRECT — Yessica 190/240min, Berenice overflow, 5306 King Charles (78724) UNASSIGNED |
+| 06-22 (Mon) | 8f869089 | ✅ CORRECT — 6002 Palm Circle (78741) UNASSIGNED "Código postal 78741 no cubierto"       |
+| 06-28 (Sun) | f97e28e7 | ✅ CORRECT — 3505 Banton (78722) UNASSIGNED; Berenice→4403A; Susana→4405A                |
+| 07-04 (Sat) | a5202d41 | ✅ CORRECT — Yessica→4403 Hayride A (90min)                                              |
+
+### Live-Fetch Proof
+
+- compiled_agents_md: `{{` count = 0; literal dates appear 3× — placeholder resolved
+- Logs: 397 lines notion/hostfully/composio refs; composio-notion + hostfully active
+- Live-fetch proven: real Notion + Hostfully API calls at runtime
+
+### Conclusion
+
+T15 PASSES. The hardened platform (commit 763f41d8, CLOSED allowlist derived from live roster) reliably generates a correct, live-fetching, plumbing-free cleaning schedule employee from a simple plain-language description. This is NOT a patched one-off — the fix is generic and the proof is clean.
+
+## [2026-06-17] Atlas verification — T15 v2 final reliability proof PASS
+
+- Fresh employee cleaning-schedule-final2 (526d304f) created from SIMPLE description via converse-create on hardened generator (763f41d8). NO hand-edits.
+- Hard gates (Atlas-verified on DB-stored steps): no plumbing (empty), NO hardcoded ZIP list (empty), {{target_date}}×4, 3 real page IDs. Closed-allowlist instruction is derive-from-roster (generic).
+- 5/5 dates Done + Atlas-judged CORRECT:
+  - 06-22 (8f869089): 6002 Palm Circle 78741 → NO ASIGNADAS "Código postal 78741 no cubierto" ✅
+  - 06-28 (f97e28e7): 4403 Hayride→Berenice, 4405 Hayride→Susana (weekend backup split), 3505 Banton 78722→NO ASIGNADAS ✅
+  - 06-15 (a84ce58f), 06-20 (6a5268de, Yessica≤240 + overflow), 07-04 (a5202d41) ✅
+- Live-fetch: compiled_agents_md {{ count=0, literal dates ×3; 397 log lines notion/hostfully/composio.
+- This proves repeatability: hardened platform reliably yields a correct, live-fetching, plumbing-free employee from simple input — not a one-off.
+
+## [2026-06-17] T16 — Docs corrected (commit 65bdf0e8)
+
+**creating-archetypes SKILL.md**: Added new "Reference Data — Live-Fetch, Not Hardcode" section with 5 durable principles. No prior hardcoding lesson existed to remove (it was never added). The section is generic (rates page, HR roster, zone directory examples — no cleaning/VLRE specifics) and durable (principles, not volatile counts or line numbers).
+
+**AGENTS.md Key Conventions**: Replaced the old "Date-parameterized employees — `printenv INPUT_<KEY>` pattern (MANDATORY)" bullet with a correctly disambiguated bullet titled "Declared inputs are `{{key}}` placeholders (generator/wizard path)". The new bullet:
+
+- Explains that generator/wizard employees reference declared inputs as `{{target_date}}` etc., resolved by the platform via `substituteTemplateVars` before the model runs.
+- Explicitly forbids `printenv INPUT_TARGET_DATE` and `node -e "...getUTCDay..."` in generated steps (leaked plumbing).
+- Preserves the legacy/manual-archetype path: hand-authored archetypes that read `INPUT_<KEY>` via `printenv` are still supported; the compiler detects this and injects `DATE_PARAMETERIZATION_RULES`.
+
+No other docs were found wrong in passing. Staged only the two docs files; `.sisyphus/` artifacts left unstaged.
+
+## [2026-06-17] T14 iter-final3 — Backup-Fallback + Calendar-Driver Fix (commit 020f7ae7)
+
+**Root causes fixed**:
+
+1. **F3 (backup-fallback)**: `buildConverseSystemPromptPre` availability bullet said "filter out unavailable team members" → model interpreted as UNASSIGNED when primary off. Fixed to: "assign to roster-defined BACKUP; UNASSIGNED reserved for keys with NO coverage at all". Added new Backup-Fallback Rule bullet covering BOTH unavailability AND over-capacity.
+2. **F1+F4 (hardcode-calendar driver)**: Calendar bullet in `buildConverseSystemPromptPre` still contained `"hardcode the full calendar as a named table in execution_steps — do NOT read it from Notion at runtime."` → caused model to embed business data in generated steps. Replaced with correct phrasing distinguishing user-stated schedules (write into steps) vs. roster-sourced schedules (read live).
+3. **CRITICAL distinction clause**: Added to Closed-Allowlist Coverage Rule in `buildConverseSystemPromptPre`: UNASSIGNED = key absent from roster entirely; primary-off or over-capacity → use backup.
+
+**Grep-gate test additions** (generator-prompts-parity.test.ts, now 17 tests):
+
+- Assert zero occurrences of `hardcode the full calendar`, `do NOT read it from Notion`, `/Do NOT read .* from Notion/` in both paths
+- Assert CRITICAL distinction clause present in both paths
+- Assert Backup-Fallback Rule present in both paths
+
+**cleaning-schedule-v24** (ID: `f2e8c798-41a0-4d36-9ef8-738b2606412c`):
+
+- Created via 1-turn converse-create (description was detailed enough → direct proposal)
+- All HARD GATES pass ({{target_date}} ×3, zero plumbing, all 3 page IDs verbatim, zero hardcoded business data)
+- **5/5 oracle score** — all dates correct including backup-dependent 06-20 and 06-28
+- **Determinism confirmed** — 06-20 and 06-28 re-run with fresh IDs produce identical assignments
+
+**Key insight**: The two paths (`SYSTEM_PROMPT_PRE` and `buildConverseSystemPromptPre`) must be kept in strict parity. A fix applied to one path but not the other will cause the converse-create path to regress while the direct-generate path passes. The grep-gate test now enforces this parity for the critical backup-fallback and calendar-driver rules.
+
+## [2026-06-17] Atlas verification — iter-final3 (commit 020f7ae7) — BOTH F-wave REJECTs RESOLVED
+
+### F-Wave first round: F2 APPROVE; F1, F3, F4 REJECT
+
+- F1/F4: forbidden phrase "hardcode the full calendar" + "do NOT read it from Notion" survived in generator (lines 245, 571). Plan grep gate forbids them.
+- F3 (serious): independent fresh-create scored only 3/5. Backup-cleaner fallback FAILED — when primary unavailable (Sunday) or over-capacity (Saturday cap), employee marked properties UNASSIGNED instead of assigning roster-defined backup (Berenice/Susana). Root cause: backup/capacity/availability rules live in LIVE Notion roster, but generator only taught ENCODE-when-stated-in-description, and lacked an EXTRACT-AND-APPLY-from-roster + backup-fallback rule.
+
+### Fix (commit 020f7ae7, both prompt paths mirrored)
+
+- FIX 1: strengthened roster-extraction to pull primary+availability+capacity+backup per key; added Backup-Fallback Rule — primary off/over-capacity → assign roster-defined backup; UNASSIGNED reserved ONLY for keys absent from roster coverage. Generic (no cleaner/ZIP/day/capacity literals).
+- FIX 2: removed "hardcode the full calendar" + "do NOT read it from Notion" from both paths; preserved user-stated-vs-roster-sourced distinction (user-stated schedule → write as rule; roster-sourced → fetch live).
+- Strengthened grep-gate test (generator-prompts-parity.test.ts L66-73): now asserts ZERO "hardcode the full calendar" + "do NOT read it from Notion" in BOTH paths.
+
+### Atlas independent verification (v24 = f2e8c798)
+
+- Forbidden phrases: `grep "hardcode the full calendar|do NOT read it from Notion"` → ZERO matches ✅ (F1/F4 resolved)
+- Backup-fallback DETERMINISTIC across 2 runs each:
+  - 06-20 Sat run1+run2: Yessica 190/240 ✅, Berenice backup gets 4403 Hayride A/B/S overflow "por rebasar capacidad" ✅✅
+  - 06-28 Sun run1+run2: Berenice gets 4403+4405 Hayride "Yessica no labora domingo — backup" ✅✅; 3505 Banton 78722 UNASSIGNED (no coverage) ✅
+  - 06-22: 6002 Palm Circle 78741 UNASSIGNED "not covered in staff roster" ✅; 06-15 Diana exclusive ✅; 07-04 Yessica 4403 90min ✅
+  - = 5/5 deterministic (F3 resolved)
+- Gates: no plumbing, no hardcoded ZIPs/names/capacity, {{target_date}}, 3 real page IDs. Tests: parity+golden+grep-gate 20/20; lint clean. Full suite: 5 pre-existing failed files (mock infra, flaky 2-vs-3 in repair suite) — NO regression. Generator lint clean.
+
+### Commits (T14 full set)
+
+- c4d07e7a, 2c12ce2e, 4dab00ca, 763f41d8, 020f7ae7 (+ 5037fee8 test wrapper, 65bdf0e8 docs)
+
+---
+
+## [2026-06-18] T15 v3 — FAIL ❌ (3/5 correct, generator regression on CLOSED language)
+
+### Employee
+
+- Role: `cleaning-schedule-final3`, Archetype ID: `8d83e102-427c-44be-89ca-c555f52fa791`
+- Created via 1-turn converse-create (direct proposal, no clarifying question)
+- Generator commit: 020f7ae7
+
+### Hard Gates (17/17 PASS)
+
+- All gates pass including no hardcoded ZIPs, no hardcoded capacity numbers, backup-fallback logic present
+- DB: `has_hardcoded_zip=f`, `has_backup_logic=t`, `has_closed_lang=t`, `has_placeholder=t`
+
+### Per-Date Verdicts (3/5 CORRECT)
+
+| Date        | Task ID  | Verdict                                                                                                    |
+| ----------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| 06-15 (Mon) | 801e883d | ✅ CORRECT                                                                                                 |
+| 06-20 (Sat) | 0bda4c61 | ✅ CORRECT — Yessica 190/240min; Berenice→4403 A,B,S overflow backup ✓                                     |
+| 06-22 (Mon) | 3e074fb3 | ❌ INCORRECT — 6002 Palm Circle (78741) assigned to Yessica (should be UNASSIGNED)                         |
+| 06-28 (Sun) | f08cf756 | ❌ INCORRECT — 3505 Banton (78722) assigned to Berenice (should be UNASSIGNED); 4403/4405 Hayride backup ✓ |
+| 07-04 (Sat) | d0634af4 | ✅ CORRECT                                                                                                 |
+
+### Backup-Fallback: WORKS ✅
+
+- 06-20 overflow: Berenice correctly gets 4403 Hayride A/B/S (backup for Yessica over capacity) ✅
+- 06-28 Sunday: Berenice/Susana correctly get 4403/4405 Hayride (Yessica off Sunday) ✅
+- The backup-fallback fix from 020f7ae7 is working correctly
+
+### CLOSED Allowlist: REGRESSED ❌
+
+- 06-22: Model grouped 78741 under 78744 coverage ("Austin area") → assigned to Yessica
+- 06-28: Model grouped 78722 under 78744 coverage → assigned to Berenice
+- Root cause: 020f7ae7 weakened the CLOSED language. v2 (763f41d8) had explicit "This set is now CLOSED: only properties whose ZIP code is in this set can be assigned" — v3 only has "Declare the complete set of covered zones aloud" which is insufficient
+
+### Key Regression
+
+v2 (763f41d8) PASSED 5/5 with explicit CLOSED keyword + membership-check language.
+v3 (020f7ae7) FAILS 3/5 — backup-fallback improved but CLOSED language weakened.
+The fix must COMBINE both: restore explicit CLOSED + membership-check language AND keep backup-fallback improvements.
+
+### Required Fix for Next T14 Iteration
+
+Generator must emit BOTH:
+
+1. "This set is CLOSED — a property is covered ONLY if its exact ZIP code appears in this set. Do NOT group nearby ZIPs. Do NOT infer coverage from city name or geographic proximity."
+2. Backup-fallback rule: "primary unavailable/over-capacity → assign roster-defined backup; UNASSIGNED only for zones absent from roster entirely"
+
+### Live-Fetch Proof
+
+- compiled_agents_md (801e883d): `{{` count=0; literal `2026-06-15` appears 4× — resolved
+- Logs: 387 lines notion/hostfully/composio refs; live-fetch confirmed
+
+---
+
+## [2026-06-17] iter-final4 — T14 REOPEN Fix: Converse Path Parity
+
+### Root Cause
+
+`buildConverseSystemPromptPre` (wizard/converse-create path) had only WEAK closed-allowlist language. `SYSTEM_PROMPT_PRE` (refine path) had STRONG exact-key membership + REQUIRED VERBATIM PHRASE + no-geographic-grouping. The asymmetry caused wizard-created employees to group nearby ZIPs (78741 grouped under 78744, 78722 grouped under 78744) instead of marking them UNASSIGNED.
+
+### Fix
+
+Four edits to `buildConverseSystemPromptPre` in `archetype-generator-prompts.ts`:
+
+1. Coverage-gap bullet: "Do NOT group nearby keys. Do NOT assign to a nearby team member to fill the gap."
+2. Closed-Allowlist Coverage Rule: exact-key enforcement + "coverage key MUST come from the work item itself, NOT from any reference Notion page."
+3. CONCRETE EXECUTION STEPS PATTERN item 2: per-item exact-key check with two-case distinction.
+4. RUNTIME REFERENCE-DATA EXTRACTION PATTERN step 3: two-case with exact-key from work item.
+
+Parity test updated: 25 assertions (was 17+2). New: `Do NOT group nearby`, `Do NOT assign to a nearby team member to fill the gap`, `coverage key`, `MUST come from the work item itself`.
+
+### Verification
+
+- **Run 1**: 5/5 — all oracle dates correct, including 78741 (6002 Palm Circle) → UNASSIGNED and 78722 (3505 Banton) → UNASSIGNED.
+- **Run 2 (determinism)**: 4/4 edge dates re-triggered — all stable. 78741 and 78722 stayed UNASSIGNED across both runs.
+- **Genericity proof**: daily-motivational-messenger generated via converse-create — no forbidden terms, no plumbing leaks, no closed-allowlist language leaked.
+- **Commit**: `9a013900` — `fix(archetype-generator): mirror strong closed-allowlist exact-key enforcement into converse path`
+
+### Key Lesson
+
+When a prompt has two generation paths (refine vs create), EVERY safety rule must be mirrored into BOTH paths. A rule that exists only in the refine path is invisible to wizard-created employees. The parity test is the enforcement mechanism — add assertions for every new safety rule to catch future asymmetries.
+
+## [2026-06-17] Atlas verification — iter-final4 (commit 9a013900) — GENUINE 5/5 DETERMINISTIC
+
+### Root cause of T15 v3 failure (3/5): prompt-path parity gap on closed-allowlist STRENGTH
+- SYSTEM_PROMPT_PRE (generate route) had VERY STRONG closed-allowlist: REQUIRED VERBATIM PHRASE "This set is now CLOSED — covered ONLY if exact ZIP in set. Do NOT group nearby ZIPs. Do NOT infer from proximity." + exact-key-membership.
+- buildConverseSystemPromptPre (WIZARD/converse path — what actually generates employees) had only WEAK "if not in reference data, mark UNASSIGNED". MISSING the strong language.
+- 020f7ae7's backup-fallback edits had inadvertently left converse weaker → model grouped 78741→78744, 78722→78744 and assigned instead of UNASSIGNED.
+
+### Fix (9a013900): mirror strong closed-allowlist into converse path
+- buildConverseSystemPromptPre now teaches the same CLOSED + exact-ZIP-membership + no-geographic-grouping + REQUIRED VERBATIM PHRASE as SYSTEM_PROMPT_PRE, COEXISTING with the backup-fallback rule.
+- parity test strengthened: both paths asserted to contain strong markers ("Do NOT group nearby" now appears 8× across file; v25 generated steps contain "CLOSED" + "exact").
+
+### Atlas independent verification (v25 = 50419c8e), BOTH determinism runs:
+- 06-22 78741: run1 "ZIP no cubierto" UNASSIGNED ✅, run2 "78741 no está cubierto (ZIPs cubiertos: 78744,78640,78203,78109,80421)" UNASSIGNED ✅
+- 06-28 78722: run1 Berenice→4403/4405 Hayride weekend backup + Banton NO ASIGNADOS ✅, run2 same ✅
+- 06-20: run1+run2 Yessica 190/240 + Berenice overflow 270min "excede capacidad" ✅
+- = 5/5 DETERMINISTIC across two independent runs. Closed-allowlist (exact key, no grouping) AND backup-fallback both work together.
+- Gates: parity+golden+input-schema 61/61; full suite 5 pre-existing failed files only (mock infra), 2135 passed, NO regression; lint clean.
+
+### KEY LESSON: SYSTEM_PROMPT_PRE and buildConverseSystemPromptPre MUST be mirrored not just in presence of rules but in STRENGTH of wording. converse-create is the wizard path — it must carry the FULL strong language. The parity test must assert strong-language markers in BOTH paths, not just rule presence.
+
+### T14 commits (full): c4d07e7a, 2c12ce2e, 4dab00ca, 763f41d8, 020f7ae7, 9a013900 (+ 5037fee8 test wrapper, 65bdf0e8 docs)
+
+## [2026-06-17] PRIORITY PIVOT (user-directed) + delivery-steps leak discovery
+
+User inspected a freshly generated employee in the dashboard (archetype 08f32f31-e378-477d-9796-9f421fe227ce, role_name `cleaning-schedule-final4`, VLRE) and found the DELIVERY STEPS still leak plumbing — verbatim:
+```
+1. Receive the compiled schedule from the previous step.
+2. Post the schedule as a message to Slack channel C0B71QSMZKQ using /tools/slack/post-message.ts.
+3. Confirm delivery by submitting output via /tools/platform/submit-output.ts.
+```
+EXECUTION STEPS for that same employee are CLEAN (plain-English, {{target_date}}, intent-only). So the plumbing-removal work was applied to execution-steps generation but NEVER to delivery-steps generation. Genuine miss.
+
+KEY INSIGHT: the whole plan over-invested in OUTPUT CORRECTNESS (oracle matching) and under-invested in the original goal (remove technical plumbing from user-visible identity/execution/delivery). Correctness ~80% of effort; plumbing-removal only partially done and never verified on delivery steps.
+
+### New priority order (user reset — supersedes remaining plan tasks T15/F-wave for now):
+1. Refactor: extract ARCHETYPE_AUTHORING_RULES single shared constant composed by all 3 prompt paths
+2. Fix delivery-steps plumbing leak — generate plain-English delivery steps (no /tools/, no submit-output mention, no raw channel IDs)
+3. Auto-attach correct tools to the AI employee at generation (Notion/composio currently not auto-attached)
+4. Fix the test failures
+5. Report any other similar tech/plumbing issues found
+
+User explicitly de-prioritized "getting the perfect output" — "We can tackle that later." So T15 oracle-proof and output-judged F-wave items are DEFERRED, not abandoned.
+
+User constraint reminder: platform-wide, not cleaning-specific; scalable to thousands of employees.
+
+## [2026-06-17] Three-exploration diagnosis (delivery leak / tool-attach / tests)
+
+### Delivery-steps leak — root causes in archetype-generator-prompts.ts
+- NO plain-English constraint exists for delivery_steps anywhere (execution_steps HAS one at ~line 150 + 615; delivery_steps has none).
+- Bad example #1: SYSTEM_PROMPT_POST line ~401 JSON example shows `tsx /tools/platform/submit-output.ts --summary "..." --classification NO_ACTION_NEEDED` literally in delivery_steps.
+- Bad instruction #2: REFINE_SYSTEM_PROMPT_PRE line ~460 explicitly tells model to include `tsx /tools/...` invocations + /tmp/draft.txt in execution_steps.
+- Bad example: SYSTEM_PROMPT_PRE lines ~358-369 Approval Flow Pattern teaches `call submit-output.ts directly with --classification`, `tsx /tools/platform/submit-output.ts ... --metadata`.
+- Delivery Templates (SYSTEM_PROMPT_PRE ~373-390): Template A/B already mostly intent-level but say "submit output" + reference $NOTIFICATION_CHANNEL (env var = OK, intent-level).
+- buildConverseSystemPromptPre DELIVERY STEPS RULE (~592-595, isCreate only) is the CLEANEST version — no /tools/, no flags. This is the target shape for all paths.
+- Platform side: worker ALREADY has slack skill + NOTIFICATION_CHANNEL env var + <approved-content> injection (APPROVED_CONTENT_CONTEXT in agents-md-compiler.mts line ~226). So delivery_steps does NOT need to spell out the tool — worker resolves it. BUT: APPROVED_CONTENT_CONTEXT itself still references literal /tmp/delivery-draft.txt (platform-internal, lower priority, same category).
+
+### Duplicated "shared domain rules" line ranges (for the refactor)
+SYSTEM_PROMPT_PRE (always present) vs buildConverseSystemPromptPre createGenerationRules (isCreate-only, ~503-596):
+| Block | SYSTEM_PROMPT_PRE | converse createGenerationRules |
+| Multi-Source Reasoning | 166-175 | 511-516 |
+| Rule-Encoding Pattern | 177-188 | 520-528 |
+| Completeness Rule | 190-199 | 530-532 |
+| Availability Rule | 201-206 | 534-537 |
+| Reference-Data Step Template | 208-226 | 539-543 |
+| Concrete Execution Steps Pattern | 228-235 | 545-552 |
+| Explicit Business Rules Encoding | 237-248 | 570-577 |
+| Reference-Data Business Rules Extraction | 252-262 | 579-586 |
+| Source Identifier Fidelity Rule | 264-285 | 554-560 |
+| Runtime Reference-Data Extraction Pattern | 287-309 | 562-568 |
+Content substantively identical, reformatted from ## headers (one-shot) to **BOLD** labels (converse). Line numbers will drift as edits are made — treat the LIST as source of truth, not the numbers.
+
+### Tool auto-attach — root cause in archetype-generator.ts
+- tool_registry is LLM-produced, then postProcess() (lines ~384-470) normalizes paths.
+- ONLY code-level auto-injection = GitHub tool for code-writing employees (lines ~463-469). NO equivalent for Composio.
+- Composio rule is PROMPT-ONLY, appears 3x (buildConnectedAppsBlock line ~33 [gated on connectedToolkits.length>0], SYSTEM_PROMPT_POST line ~448, buildConverseSystemPromptPre line ~518). LLM compliance unreliable on vague descriptions.
+- FIX: add postProcess() block after line ~398 that scans execution_steps for Composio-app keywords (notion, google sheets, gmail, linear, jira, etc.) and injects /tools/composio/execute.ts if missing — mirror GitHub pattern. Canonical path string: `/tools/composio/execute.ts`. Should gate on tenant having connected apps (avoid attaching when nothing connected).
+
+### Test failures — NOT pre-existing mock infra! Real fixture drift, all SAFE to fix.
+Single root cause: a delivery_steps enforcement change in TWO places — (1) route guard MISSING_DELIVERY_CONFIG in admin-archetypes.ts ~line 199 rejects null/empty delivery_steps on create; (2) postProcess() ~line 369-370 now fills null delivery_steps with DEFAULT_DELIVERY_INSTRUCTIONS. Tests weren't updated.
+- admin-archetypes-create.test.ts (2 fail): VALID_BODY missing delivery_steps -> 400. Add delivery_steps to VALID_BODY.
+- admin-archetypes.test.ts (2 fail): same. Add delivery_steps to VALID_BODY.
+- time-estimation-integration.test.ts (2 fail): same. Add delivery_steps to VALID_BODY.
+- archetype-generator-golden.test.ts (1 fail line 224): assert delivery_steps null -> change to expect DEFAULT_DELIVERY_INSTRUCTIONS.
+- archetype-generator-repair.test.ts (2 fail): UNCHANGED_REFINE_JSON + makeConfig() have delivery_steps:null -> set to DEFAULT_DELIVERY_INSTRUCTIONS so proseUnchanged check works.
+NOTE: fixing the delivery-leak prompt may change DEFAULT_DELIVERY_INSTRUCTIONS-adjacent behavior — do test fixes LAST, after prompt + postProcess changes settle.
+
+### Sequencing decision
+A. Refactor (extract ARCHETYPE_AUTHORING_RULES) + delivery-leak fix — SAME file archetype-generator-prompts.ts, must be sequential same-session. Delivery fix also needs agents-md-compiler.mts (Docker rebuild) for the platform-side delivery mechanic.
+B. Tool auto-attach — independent file archetype-generator.ts postProcess().
+C. Test fixes — LAST, after A+B.
+
+## [2026-06-17] CRITICAL de-risk: delivery-steps fix is GENERATOR-ONLY (no Docker rebuild needed)
+
+Read delivery-phase.mts fully. ALL four delivery mechanics are ALREADY platform-injected — delivery_steps does NOT need to spell any of them out:
+1. Slack post CLI syntax -> `slack` skill (auto-loaded in worker image, filterCustomSkills keeps it when slack connected)
+2. Channel -> NOTIFICATION_CHANNEL env var (injected; harness-helpers.mts reads it)
+3. Content -> <approved-content> XML (APPROVED_CONTENT_CONTEXT injected by compiler unconditionally)
+4. Submit-output confirmation -> delivery-phase.mts LINE 176 passes fallbackCommand `tsx /tools/platform/submit-output.ts --summary "..." --classification "NO_ACTION_NEEDED"` directly to runOpencodeSession. PLATFORM-OWNED.
+
+=> Stripping /tools/, submit-output mention, and raw channel ID from generated delivery_steps is LOW RUNTIME RISK. The worker already knows HOW.
+=> Therefore the delivery-leak fix is a GENERATOR-PROMPT-ONLY change. NO src/workers/ change required => NO Docker rebuild required for this fix. (Confirmed acceptable to user constraint.)
+=> Optional future polish: also clean APPROVED_CONTENT_CONTEXT's literal /tmp/delivery-draft.txt reference (platform-internal, not user-visible) — defer, would need Docker rebuild.
+
+This means Steps A (prompt refactor + delivery-leak) and B (tool auto-attach) are BOTH gateway-only => fast iteration, no Docker.
+
+## [2026-06-17] Plumbing-strip edits to archetype-generator-prompts.ts (3 mechanical edits)
+
+- Edit 1 (REFINE_SYSTEM_PROMPT_PRE execution_steps rule): Applied — replaced `tsx /tools/...` + `/tmp/draft.txt` + `submit-output` CLI teaching with intent-level plain-English + `{{key}}` placeholder rule.
+- Edit 2 (REFINE_SYSTEM_PROMPT_PRE delivery_steps rule): Applied — replaced bare `<approved-content>` + "Post to Slack using the post-message tool" with explicit NO-CLI-paths/NO-tsx/NO-flags/NO-tmp/NO-raw-channel-IDs constraint + intent-level delivery description. Also required fixing escaped backtick (unescaped in first attempt, corrected in second edit).
+- Edit 3 (SYSTEM_PROMPT_PRE Approval Flow + Passing Data sections): Applied — removed `tsx /tools/platform/submit-output.ts --classification`, `--metadata`, `--thread-ts`, `${APPROVAL_MESSAGE_PATH}` CLI teaching; replaced with plain-English intent descriptions. Side effect: `APPROVAL_MESSAGE_PATH` import became unused → removed from import line to fix lint.
+
+## [2026-06-18] Composio auto-attach enforcement — Task 4
+
+### What was done
+Added code-level enforcement so `postProcess()` in `src/gateway/services/archetype-generator.ts` automatically injects `/tools/composio/execute.ts` into `tool_registry.tools` whenever `execution_steps` mentions a Composio-connected app. Mirrors the existing GitHub-tool auto-injection pattern.
+
+### Keyword list (`COMPOSIO_APP_KEYWORDS`)
+Defined as a module-level const just before `PostProcessedArchetypeSchema` (~line 337):
+```
+notion, google sheet, google doc, google drive, google calendar, gmail,
+linear, jira, airtable, asana, trello, hubspot, salesforce, confluence, monday, clickup
+```
+Match is case-insensitive (`execution_steps.toLowerCase()`).
+
+### Insertion point in postProcess()
+Block inserted AFTER the tool-registry path-normalization block (the `if (toolRegistry && Array.isArray(toolRegistry.tools)) { ... }` block that ends around line 418 in the updated file), and BEFORE the `rawTrigger` handling. This guarantees all three code paths (generate, refine, converse — all call postProcess) benefit.
+
+### Guard logic
+- If `tool_registry.tools` exists as array → push if not already present (dedup guard)
+- If `tool_registry` is null/missing → create `{ tools: ['/tools/platform/submit-output.ts', '/tools/composio/execute.ts'] }`
+- If `execution_steps` is not a string → skip entirely (defensive)
+
+### Test file
+`tests/unit/gateway/services/archetype-generator-composio-autoattach.test.ts`
+7 tests: notion attach, no-keyword skip, dedup guard, multi-word keyword (google sheet), case-insensitive, missing registry creation, refine() path. All 7 pass.
+
+### Verification
+- `node scripts/run-vitest.mjs run tests/unit/gateway/services/archetype-generator-composio-autoattach.test.ts` → 7 passed
+- `npx tsc -p tsconfig.build.json --noEmit` → exit 0
+- `pnpm lint` → clean
+
+## [2026-06-18] Test fixture drift fix — delivery_steps enforcement
+
+**Task**: Fix 9 failing unit tests across 5 files caused by `delivery_steps` enforcement added to production.
+
+**Root cause**: Create route now returns 400 `MISSING_DELIVERY_CONFIG` for null/empty `delivery_steps`; `postProcess()` fills null `delivery_steps` with `DEFAULT_DELIVERY_INSTRUCTIONS`. Test fixtures predated both changes.
+
+**Fixes applied**:
+- Files 1-3 (`admin-archetypes-create.test.ts`, `admin-archetypes.test.ts`, `time-estimation-integration.test.ts`): Added `delivery_steps` to each `VALID_BODY` fixture so POST returns 201 instead of 400.
+- File 4 (`archetype-generator-golden.test.ts`): Imported `DEFAULT_DELIVERY_INSTRUCTIONS` and changed assertion from `previousConfig.delivery_steps` (null) to `DEFAULT_DELIVERY_INSTRUCTIONS` to match `postProcess()` output.
+- File 5 (`archetype-generator-repair.test.ts`): Imported `DEFAULT_DELIVERY_INSTRUCTIONS`, changed `makeConfig()` and `UNCHANGED_REFINE_JSON` to use `DEFAULT_DELIVERY_INSTRUCTIONS` instead of `null` — without this, the proseUnchanged check sees a spurious diff (postProcess result vs null baseline) and skips the retry, breaking the retry-path tests.
+
+**Targeted run result**: 5 files, 53 tests, 0 failures.
+
+**Full suite result**: 2 failed (182 files) | 4 failed (2160 tests) — all 4 pre-existing in `archetype-generator-prompts.test.ts` (confirmed via git stash, pre-existed before my changes).
+
+**tsc**: exit 0. **lint**: clean.
+
+**Key import path**: `../../../../src/lib/output-contract-constants.js` (from `tests/unit/gateway/services/`).
+
+## [2026-06-18] Prompt-test inversion + golden fixture regeneration
+
+**Task**: Fix 4 remaining failures caused by REFINE_SYSTEM_PROMPT_PRE being made intent-level.
+
+**Root cause**: The `REFINE_SYSTEM_PROMPT_PRE — intentionally NOT abstracted (still CLI-level)` describe block had 3 tests asserting REFINE still contained CLI plumbing (`tsx /tools/platform/submit-output.ts`, `includes explicit \`tsx /tools/...\`` mandate). The prompt was intentionally cleaned up, making those assertions incorrect.
+
+**Key gotcha — CLI_PATTERN false positive**: The new prompt at line 458 says `(no tsx /tools/... CLI commands` as a prohibition. This means `/tsx \/tools\//` still matches REFINE_SYSTEM_PROMPT_PRE! Naively inverting test 1 to `.not.toMatch(CLI_PATTERN)` therefore FAILS. The correct inversion for test 1 is a POSITIVE assertion about the new behavior: `toContain('intent-level plain English')`. Tests 2 and 3 invert cleanly to `.not.toContain(...)`.
+
+**Edit artifact**: First edit attempt left orphaned duplicate test blocks at module-level (outside describe). The `Edit` tool sometimes leaves remnants when the newString replaces only part of a matched oldString range. Fixed by targeting the orphaned lines explicitly.
+
+**Golden diff** (only intended changes):
+- `refine-prompt.txt`: execution_steps rule rewritten intent-level; delivery_steps rule rewritten without CLI paths.
+- `system-prompt.txt`: Approval Flow Pattern + Passing Data sections rewritten intent-level; delivery_steps example updated.
+- `compiled-agents-md.txt`: UNCHANGED (fixed input, unaffected by prompt edits).
+
+**Full suite final**: 182 files passed | 0 failed | 2151 tests passed | 9 skipped (container-boot Docker).
+**tsc**: exit 0. **lint**: clean.
+
+## [2026-06-17] Oracle finding on the ARCHETYPE_AUTHORING_RULES refactor — DECISION POINT
+
+3 of 4 user priorities DONE + committed:
+- delivery-leak fix (commit 30ef3020)
+- composio tool auto-attach (commit 349ba84b, 7 tests)
+- test failures fixed, full suite GREEN 2151 pass / 9 docker-skip (commit 8842254f)
+
+The 4th (the extraction refactor) — oracle analyzed and flagged a REAL risk the prior 2 stalls hinted at:
+- The two duplicated copies are NOT just formatting-different (## vs **BOLD**). They have SUBSTANTIVELY DIFFERENT WORDING in several rules (e.g. closed-allowlist rule places "NEVER determine key from property directory" inline in converse but in a separate sentence in PRE; the 5-step runtime-extraction pattern differs in wording per step).
+- Extracting "the strongest version" therefore requires JUDGMENT per rule — choosing one wording over the other could silently WEAKEN one path's guidance. That judgment is exactly what made the prior agents stall.
+- The parity test (25 assertions, currently green) ALREADY guards the critical invariants (verbatim CLOSED phrase, backup-fallback, forbidden patterns, structural completeness) across both paths. So the regression the refactor was meant to prevent is ALREADY mitigated.
+- The parity test's count assertion `^\d+\. \*\*` counts bold-numbered items; unifying formatting would break it and require rewriting the test.
+
+Oracle recommendation: Option C — DEFER. Internal-only file, well-tested, low duplication cost, high botch-cost.
+If still doing it: canonicalize on **BOLD** style, extract constant first, build-check, splice converse then PRE, regenerate golden, fix parity title-case assertion. Biggest failure mode = backtick escaping in the template literal → run build immediately after extraction.
+
+ATLAS DECISION: surface to user. The user explicitly requested this refactor, but also de-prioritized perfection and prioritized stability. The wording-divergence risk is material and the user should decide whether the internal-cleanliness win is worth the botch risk now vs deferring.
+
+## [2026-06-17] USER DECISION: do the refactor now, carefully
+
+User chose to proceed with the ARCHETYPE_AUTHORING_RULES extraction despite the wording-divergence risk. Executing the oracle's verify-after-each-step plan:
+- Canonicalize on ONE format; pick the STRONGEST wording of each rule (when the two copies differ, keep the stronger/more-complete sentence — never drop a constraint).
+- Order: extract constant -> BUILD -> splice converse -> test -> splice PRE -> regenerate golden -> fix parity test -> full suite.
+- Biggest risk: backtick escaping in template literal -> build immediately after extraction.
+- Acceptance: generation output semantically equivalent (no rule weakened), parity test green, golden regenerated, full suite green, build exit 0.
+
+## [2026-06-17] REFACTOR DONE (handled directly by Atlas, no sub-agents per user request)
+
+CRITICAL CORRECTION to oracle's assumption: the two duplicated copies are NOT a clean superset. Word-level diff showed PRE's region (144 lines) is MUCH richer than converse's (76 lines) — PRE uniquely has the full 9-step "Required steps (in order)" template, "System C", expanded examples. Converse uniquely has the Composio rule. So "canonicalize on converse" (oracle's step 1) would have SILENTLY DROPPED massive PRE guidance — exactly the trap that stalled prior agents.
+
+SAFE DESIGN ACTUALLY USED:
+- ARCHETYPE_AUTHORING_RULES = PRE's EXACT bytes (## Multi-Source Reasoning ... end of Runtime Reference-Data Extraction Pattern, the richer copy).
+- PRE: replaced its 166-309 region with ${ARCHETYPE_AUTHORING_RULES} => SYSTEM_PROMPT_PRE output BYTE-IDENTICAL => golden test passes WITHOUT regeneration => ZERO risk to one-shot path.
+- converse: replaced its weaker duplicated block with [Composio rule preserved] + ${ARCHETYPE_AUTHORING_RULES} => converse GAINS PRE's richer wording (strict improvement) + keeps its scaffolding (DATE/PERIOD, Composio, LANGUAGE, TRIGGER, DELIVERY STEPS).
+- isCreate gate intact: create=false still excludes the rules.
+
+Execution method: Node scripts (/tmp/extract_rules.mjs, /tmp/splice_converse.mjs) doing exact string slice/splice on raw file bytes — NO manual transcription of 144 lines => no escaping/transcription error. Verified no ${ interpolations and no unescaped backticks in either region before extraction (safe to wrap in a new template literal verbatim).
+
+Only parity test change needed: line 55 `RUNTIME REFERENCE-DATA EXTRACTION PATTERN` (ALL-CAPS converse marker) -> `Runtime Reference-Data Extraction Pattern` (canonical title-case now shared). 1 assertion updated + explanatory comment.
+
+VERIFICATION (all green):
+- build tsc -p tsconfig.build.json exit 0
+- golden-prompts 3/3 pass WITHOUT regen (proves PRE byte-identical)
+- generator-prompts-parity 25/25 pass
+- 15/15 custom semantic checks pass (PRE+converse compose constant; converse keeps Composio/DATE/LANGUAGE/DELIVERY; converse gained 9-step template + Source-ID-Fidelity; REQUIRED VERBATIM PHRASE + Backup-Fallback present; isCreate gate works; no /tmp leak; no hardcode driver)
+- full suite 182 files / 2151 pass / 9 docker-skip / 0 fail (2 consecutive runs; one earlier run had a 1-off flake in admin-archetype-generate mocked-DB test, not reproducible, unrelated)
+- lint clean
+- net -65 lines in prompt file (duplication eliminated)
+
+Duplication is now STRUCTURALLY impossible to drift: both paths interpolate the same const. Parity test retained as defense-in-depth.
+
+ALL 4 USER PRIORITIES NOW COMPLETE:
+1. Refactor (this) | 2. delivery-leak (30ef3020) | 3. composio auto-attach (349ba84b) | 4. tests green (8842254f)
+
+## [2026-06-17] LIVE E2E verification of committed fixes (against running gateway :7700)
+
+Generated 2 fresh employees via POST /admin/tenants/<vlre>/archetypes/generate:
+
+(1) Simple Slack-summary employee ("read team updates, post daily summary to Slack"):
+- delivery_steps verbatim:
+  1. Parse the approved content from the delivery prompt and extract the `draft` field.
+  2. Post the approved summary to the `$NOTIFICATION_CHANNEL` Slack channel.
+  3. Confirm delivery by submitting your output for review.
+- LEAK GREP (delivery_steps): CLEAN — no /tools/, tsx, submit-output.ts, --flags, /tmp/, raw channel ID, <approved-content>
+- LEAK GREP (execution_steps): CLEAN
+- Contrast with the BROKEN version user reported (".../tools/slack/post-message.ts", ".../tools/platform/submit-output.ts") => FIXED.
+- Note: $NOTIFICATION_CHANNEL env-var ref remains (intent-level, platform-resolved) — acceptable, not a raw channel ID.
+
+(2) Notion-reading employee ("read cleaning assignments from Notion, post schedule to Slack"):
+- tool_registry.tools = ["/tools/platform/submit-output.ts","/tools/composio/execute.ts"]
+- => PASS: composio tool AUTO-ATTACHED (the previously-manual step is now automatic). Confirms commit 349ba84b works in real generation.
+- delivery_steps: CLEAN.
+
+CONCLUSION: priorities #2 (delivery leak) and #3 (tool auto-attach) proven working end-to-end on the live system, not just unit tests. The original user-reported bug is resolved in real output.

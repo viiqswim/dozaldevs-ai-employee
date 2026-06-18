@@ -739,7 +739,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (Group 1 artifacts).
 
-- [ ] 14. UNBOUNDED fix loop until reliable — correct + live-fetch + no-leak + generic + no regression
+- [x] 14. UNBOUNDED fix loop until reliable — correct + live-fetch + no-leak + generic + no regression
 
   **What to do** (iterate with NO cap until the termination condition holds):
   1. Apply the next generic fix — prefer the generator prompt (hot-reload); use the compiler/skill (rebuild) or logic only when a prompt change is insufficient. Mirror across BOTH prompt paths. Any added example must be in an unrelated (non-cleaning) domain.
@@ -824,7 +824,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: NO (verification artifacts).
 
-- [ ] 16. Replace the docs lesson in the creating-archetypes skill (corrected)
+- [x] 16. Replace the docs lesson in the creating-archetypes skill (corrected)
 
   **What to do**:
   - In `.opencode/skills/creating-archetypes/SKILL.md`, add the CORRECTED reference-data lesson (and REMOVE/replace any prior lesson that teaches hardcoding, if present): for employees that depend on reference data, FETCH the live source of truth each run (e.g. Notion via `NOTION_GET_PAGE_MARKDOWN`) — never copy its values into the employee's steps; encode ONLY the interpretation rules (how to look something up, what to do on a miss / on ambiguity); and keep platform mechanics (trigger-date env var, output contract, tool-call syntax) OUT of the employee description — those belong to the platform base/compiler layers and skills.
