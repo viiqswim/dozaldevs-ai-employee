@@ -467,6 +467,7 @@ If the description yields no valid slug (e.g. emoji-only input), a deterministic
 6. **Employee-specific language in shared files** — `employee-lifecycle.ts`, `opencode-harness.mts`, `src/gateway/`, `src/lib/` serve ALL employees. Keep them generic.
 7. **Forgetting `agents_md`** — always set `agents_md: PLATFORM_AGENTS_MD` (read from `src/workers/config/agents.md`).
 8. **CLI invocations in wizard-generated steps** — generated `execution_steps` must use intent prose, not `tsx /tools/...` commands. The worker resolves tool commands at runtime.
+9. **Empty `delivery_steps` on create** — `POST /admin/tenants/:tenantId/archetypes` rejects null/empty `delivery_steps` with `400 MISSING_DELIVERY_CONFIG`. Employees that deliver inside execution and emit `NO_ACTION_NEEDED` must explicitly pass `delivery_steps: null` — the route distinguishes `null` (valid escape hatch) from `""` (invalid). The generator's `postProcess()` fills a null `delivery_steps` with `DEFAULT_DELIVERY_INSTRUCTIONS` (from `src/lib/output-contract-constants.ts`) so wizard-created employees always have a non-null value; manual seeds that intend the escape hatch must set `delivery_steps: null` explicitly.
 
 ---
 
