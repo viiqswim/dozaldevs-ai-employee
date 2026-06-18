@@ -5,9 +5,13 @@ import {
   type GenerateArchetypeResponse,
   type ConverseMessage,
 } from '../../../../src/gateway/services/archetype-generator.js';
-import { buildConverseSystemPromptPre } from '../../../../src/gateway/services/prompts/archetype-generator-prompts.js';
+import {
+  buildConverseSystemPromptPre,
+  PLUMBING_JUDGE_SYSTEM_PROMPT,
+} from '../../../../src/gateway/services/prompts/archetype-generator-prompts.js';
 
 const ESTIMATOR_SYSTEM_PREFIX = 'You estimate manual task duration';
+const JUDGE_CLEAN = JSON.stringify({ has_leak: false, fields: [], snippets: [] });
 
 function makeResult(content: string) {
   return {
@@ -57,6 +61,9 @@ function makeConverseRoutingMock(converseResponse: string) {
     if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
       return makeResult('5');
     }
+    if (systemContent === PLUMBING_JUDGE_SYSTEM_PROMPT) {
+      return makeResult(JUDGE_CLEAN);
+    }
     return makeResult(converseResponse);
   });
   return fn;
@@ -68,6 +75,9 @@ function makeCapturingConverseMock(converseResponse: string) {
     const systemContent = opts.messages?.[0]?.content ?? '';
     if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
       return makeResult('5');
+    }
+    if (systemContent === PLUMBING_JUDGE_SYSTEM_PROMPT) {
+      return makeResult(JUDGE_CLEAN);
     }
     converseUserContents.push(opts.messages?.[1]?.content ?? '');
     return makeResult(converseResponse);

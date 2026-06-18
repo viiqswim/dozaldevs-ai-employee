@@ -5,15 +5,43 @@ import {
   isCodeWritingEmployee,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
 } from '../archetype-generator.js';
+import { PLUMBING_JUDGE_SYSTEM_PROMPT } from '../prompts/archetype-generator-prompts.js';
+
+const JUDGE_CLEAN = JSON.stringify({ has_leak: false, fields: [], snippets: [] });
+const ESTIMATOR_PREFIX = 'You estimate manual task duration';
 
 function makeLLMResult(json: object): ReturnType<typeof vi.fn> {
-  return vi.fn().mockResolvedValue({
-    content: JSON.stringify(json),
-    model: 'deepseek/deepseek-v4-flash',
-    promptTokens: 10,
-    completionTokens: 50,
-    estimatedCostUsd: 0.0001,
-    latencyMs: 50,
+  const archJson = JSON.stringify(json);
+  return vi.fn(async (opts: { messages?: Array<{ role: string; content: string }> }) => {
+    const sys = opts.messages?.[0]?.content ?? '';
+    if (sys === PLUMBING_JUDGE_SYSTEM_PROMPT) {
+      return {
+        content: JUDGE_CLEAN,
+        model: 'deepseek/deepseek-v4-flash',
+        promptTokens: 10,
+        completionTokens: 10,
+        estimatedCostUsd: 0,
+        latencyMs: 1,
+      };
+    }
+    if (sys.startsWith(ESTIMATOR_PREFIX)) {
+      return {
+        content: '5',
+        model: 'deepseek/deepseek-v4-flash',
+        promptTokens: 10,
+        completionTokens: 10,
+        estimatedCostUsd: 0,
+        latencyMs: 1,
+      };
+    }
+    return {
+      content: archJson,
+      model: 'deepseek/deepseek-v4-flash',
+      promptTokens: 10,
+      completionTokens: 50,
+      estimatedCostUsd: 0.0001,
+      latencyMs: 50,
+    };
   });
 }
 
@@ -212,7 +240,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
     const result = await generator.generate('Daily Slack digest of team activity');
 
     expect(result.role_name).toBe('test-employee');
-    expect(mockCallLLM).toHaveBeenCalledTimes(2);
+    expect(mockCallLLM).toHaveBeenCalledTimes(3);
   });
 
   it('retry-success path: succeeds on second attempt when first response is invalid JSON', async () => {
@@ -248,7 +276,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
     const result = await generator.generate('Daily Slack digest of team activity');
 
     expect(result.role_name).toBe('test-employee');
-    expect(mockCallLLM).toHaveBeenCalledTimes(3);
+    expect(mockCallLLM).toHaveBeenCalledTimes(4);
   });
 
   it('retry-fail path: throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
@@ -305,7 +333,7 @@ describe('ArchetypeGenerator — JSON parse retry', () => {
     );
 
     expect(result.role_name).toBe('test-employee');
-    expect(mockCallLLM).toHaveBeenCalledTimes(3);
+    expect(mockCallLLM).toHaveBeenCalledTimes(4);
   });
 
   it('retry-fail path for refine(): throws GENERATION_FAILED when both attempts return invalid JSON', async () => {
