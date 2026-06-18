@@ -393,6 +393,41 @@ Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
 
 ---
 
+## Reference Data — Live-Fetch, Not Hardcode
+
+When an employee depends on external reference data (a rates page, an HR roster, a zone directory, a policy document, a schedule source), it must **fetch the live source of truth each run**. Never copy the source's values (times, zones, names, prices, assignments) into the employee's `execution_steps` or `instructions`. Encode only the interpretation rules: how to look something up, what to do on a miss, how to handle ambiguity.
+
+### The five durable rules
+
+**1. Fetch live, encode rules.** The employee reads the source (e.g. a Notion page via `NOTION_GET_PAGE_MARKDOWN`, a Google Sheet via Composio, a public URL via HTTP) at the start of every run. It reasons over whatever structure it finds — prose, bullets, table — and applies the interpretation rules you gave it. If the source changes, the employee automatically picks up the change without any archetype edit.
+
+**2. Declared inputs are `{{key}}` placeholders.** When the user declares an input (an `input_schema` item, e.g. `target_date`), the steps reference it as `{{target_date}}` (matching the snake*case key). The platform resolves every `{{key}}` to the actual runtime value via `substituteTemplateVars` on the compiled AGENTS.md, fed by `INPUT*<KEY>`env vars, **before the model runs**. Employee steps must not contain`printenv INPUT_TARGET_DATE`, `node -e "...getUTCDay..."`, or any env-var reads. That is leaked plumbing. This applies to any input key: `{{report_date}}`, `{{customer_name}}`, `{{property_id}}`, etc.
+
+**3. Keep platform mechanics out of the employee description.** Trigger-date handling, the output contract (`submit-output`, `<approved-content>`, `/tmp/` paths), and tool-call CLI syntax belong to the platform base/compiler layers and the `tool-usage-reference` skill, not the per-employee steps. The generator emits intent-level plain English: "Read the target date", "Submit the completed draft for review", "Post the approved content to the team's Slack channel."
+
+**4. Preserve user-provided source identifiers verbatim.** If the user names a source (a Notion page ID, a sheet URL, a specific document), the steps reference that exact identifier. Never invent fictional "X database" or "Y table" names. Read the actual content and reason over whatever structure it has. When the content is ambiguous, abort with an explanation or mark the result UNKNOWN rather than guessing.
+
+**5. Closed allowlist from live data for coverage decisions.** When assigning or looking up coverage from a roster-style source, the employee builds the covered-key set from the live roster, declares it, and treats it as closed. Any item whose key isn't in that roster-derived set is UNASSIGNED, even if the key appears in another source or is geographically adjacent to a covered key. This keeps data live and deterministic — do not hardcode the allowlist.
+
+### What this looks like in practice
+
+```
+WRONG — hardcoded reference data in steps:
+  "Zone A covers properties 101, 102, 103. Zone B covers 104, 105."
+  "Monday cleaner is Alice, Tuesday is Bob, Wednesday is Carol."
+
+CORRECT — live-fetch + rules only:
+  "Read the zone directory from the Notion page at <page-id>.
+   For each property in today's checkout list, look up its zone.
+   If a property's zone is not in the directory, mark it UNASSIGNED."
+```
+
+### Common mistake
+
+Copying a reference table into `execution_steps` because it "doesn't change often" is the wrong tradeoff. It creates silent drift: the source updates, the employee doesn't, and the employee produces wrong output with no error. Always fetch live.
+
+---
+
 ## Intent-Level Steps Convention & role_name Derivation
 
 ### Intent-Level Steps (Wizard-Generated Employees)
