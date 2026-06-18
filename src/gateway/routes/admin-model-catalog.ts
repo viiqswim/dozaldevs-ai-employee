@@ -94,7 +94,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     '/admin/model-catalog',
     authMiddleware,
     requireAuth,
-    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    requirePermission(PERMISSIONS.READ_MODEL_CATALOG),
     async (req, res) => {
       const queryResult = ListModelCatalogQuerySchema.safeParse(req.query);
       if (!queryResult.success) {
@@ -128,7 +128,7 @@ export function adminModelCatalogRoutes({ prisma }: { prisma: PrismaClient }): R
     '/admin/model-catalog/:id',
     authMiddleware,
     requireAuth,
-    requirePermission(PERMISSIONS.MANAGE_MODEL_CATALOG),
+    requirePermission(PERMISSIONS.READ_MODEL_CATALOG),
     async (req, res) => {
       const paramResult = ModelCatalogParamSchema.safeParse(req.params);
       if (!paramResult.success) {

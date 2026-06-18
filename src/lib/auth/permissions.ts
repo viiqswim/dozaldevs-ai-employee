@@ -9,6 +9,7 @@ import { Role, TenantRole } from '@prisma/client';
 export const PERMISSIONS = {
   // Platform-level (global Role — cross-tenant)
   MANAGE_TENANTS: 'manage:tenants',
+  READ_MODEL_CATALOG: 'read:model_catalog',
   MANAGE_MODEL_CATALOG: 'manage:model_catalog',
   MANAGE_PLATFORM_SETTINGS: 'manage:platform_settings',
 
@@ -41,6 +42,7 @@ export const ROLE_PERMISSIONS: Record<Role, Set<Permission>> = {
   [Role.PLATFORM_OWNER]: new Set(Object.values(PERMISSIONS) as Permission[]),
   [Role.ADMIN]: new Set<Permission>([
     PERMISSIONS.READ_TENANT,
+    PERMISSIONS.READ_MODEL_CATALOG,
     PERMISSIONS.MANAGE_ARCHETYPES,
     PERMISSIONS.MANAGE_RULES,
     PERMISSIONS.MANAGE_KB,
@@ -52,6 +54,7 @@ export const ROLE_PERMISSIONS: Record<Role, Set<Permission>> = {
   ]),
   [Role.EDITOR]: new Set<Permission>([
     PERMISSIONS.READ_TENANT,
+    PERMISSIONS.READ_MODEL_CATALOG,
     PERMISSIONS.MANAGE_ARCHETYPES,
     PERMISSIONS.MANAGE_RULES,
     PERMISSIONS.MANAGE_KB,
@@ -59,6 +62,7 @@ export const ROLE_PERMISSIONS: Record<Role, Set<Permission>> = {
   ]),
   [Role.USER]: new Set<Permission>([
     PERMISSIONS.READ_TENANT,
+    PERMISSIONS.READ_MODEL_CATALOG,
     PERMISSIONS.TRIGGER_EMPLOYEE,
     PERMISSIONS.READ_TASKS,
   ]),
@@ -78,6 +82,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Set<Permission>> = {
     PERMISSIONS.DELETE_TENANT,
     PERMISSIONS.MANAGE_SECRETS,
     PERMISSIONS.MANAGE_INTEGRATIONS,
+    PERMISSIONS.READ_MODEL_CATALOG,
     PERMISSIONS.MANAGE_ARCHETYPES,
     PERMISSIONS.MANAGE_RULES,
     PERMISSIONS.MANAGE_KB,
@@ -91,6 +96,7 @@ export const TENANT_ROLE_PERMISSIONS: Record<TenantRole, Set<Permission>> = {
   [TenantRole.ADMIN]: new Set<Permission>([
     PERMISSIONS.READ_TENANT,
     PERMISSIONS.UPDATE_TENANT,
+    PERMISSIONS.READ_MODEL_CATALOG,
     PERMISSIONS.MANAGE_ARCHETYPES,
     PERMISSIONS.MANAGE_RULES,
     PERMISSIONS.MANAGE_KB,
