@@ -788,7 +788,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: YES (Group 3 — one commit per landed fix). Message: `fix(archetype-generator): <generic hardening description>`. Files: generator/compiler/skill + tests. Pre-commit: `pnpm test -- --run && pnpm lint`.
 
-- [ ] 15. Final reliability proof — fresh create-from-simple, correct + live-fetch + no-leak on EVERY date
+- [ ] 15. Final reliability proof — fresh create-from-simple, correct + live-fetch + no-leak on EVERY date — DEFERRED by user. Single-run coverage proof DONE (task 06cfb30a, 11/11). Known open defect: backup-cleaner over-capacity reassignment (flagged not reassigned) — needs postProcess capacity-step injection + 5-date validation. See handoff.
 
   **What to do**:
   - From a CLEAN slate (single-gateway pre-flight), create the cleaning-schedule employee ONE more time from a SIMPLE plain-language description through the real wizard (fresh draft) — proving the hardened platform yields a correct, live-fetching, plumbing-free employee from simple input, not a patched one-off.
@@ -856,7 +856,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: YES (Group 4) — `docs(employee-creation): correct the reference-data lesson (live-fetch, not hardcode)`.
 
-- [ ] 17. Notify completion — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] 17. Notify completion — Send Telegram: plan complete, all tasks done, come back to review. (Sent 2026-06-17: wave approved, 11 commits, F1/F2/F4 APPROVE, F3/T15 deferred.)
 
   **What to do**: After the Final Verification Wave passes AND the user gives explicit okay, run `tsx scripts/telegram-notify.ts "✅ Cleaning-schedule v2 complete — the platform now generates a plain-English employee that fetches live Notion data and leaks no plumbing, correct across all 5 dates. Come back to review."`
 
@@ -871,19 +871,19 @@ Max Concurrent: 7 (Wave 1)
 
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to the user and get explicit "okay" before completing. Never mark F1-F4 checked before user okay. Rejection or user feedback → fix → re-run → present again → wait for okay.
 
-- [ ] F1. **Plan Compliance + Genuine-Platform-Fix Audit** — `oracle`
+- [x] F1. **Plan Compliance + Genuine-Platform-Fix Audit** — `oracle` — VERDICT: APPROVE (Must Have 5/5, Must NOT Have violations 0, 4 priorities committed, fixes generic, no other archetypes touched)
       Verify every "Must Have" exists (Hostfully oracle, dual baseline, Notion prose capture, 5-date reliability evidence). Verify every "Must NOT Have" is absent: output-judged not spec-judged; oracle built from live Hostfully (not snapshots); zero hardcoded business data in the final employee; zero plumbing leaks; refine-path correctly left out of scope; each fix generic on `daily-motivation`; no deferred backlog; no other employees' archetypes edited. Confirm evidence files exist.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Fixes generic [N/N] | Backlog absent [Y/N] | VERDICT`
 
-- [ ] F2. **Code Quality + Dual-Baseline Regression** — `unspecified-high`
+- [x] F2. **Code Quality + Dual-Baseline Regression** — `unspecified-high` — VERDICT: APPROVE (Build P, Lint P, Tests 2151 pass/0 fail/9 skip, no anti-patterns, refactor sound — PRE byte-identical)
       Run `tsc --noEmit` + `pnpm lint` + `pnpm test` (incl. the new parity test + grep gate). Review changed platform files (compiler, base agents.md, generator prompts, skill) for `as any`/`@ts-ignore`, dead code, contradiction. Regen Baseline-B (the enumerated at-risk employees) and confirm no structural degradation. Confirm base `agents.md` stayed thin and load-bearing mechanics landed in high-priority compiler sections.
       Output: `Build [P/F] | Lint [P/F] | Tests [N pass/N fail] | Baseline-B [CLEAN/N degraded] | VERDICT`
 
-- [ ] F3. **Real Live QA — 5-Date Replay + Live-Fetch Proof** — `unspecified-high` (+ `playwright` skill)
+- [ ] F3. **Real Live QA — 5-Date Replay + Live-Fetch Proof** — `unspecified-high` (+ `playwright` skill) — DEFERRED by user (output-perfection). Single-run substitute DONE: fresh employee, task 06cfb30a, 2026-06-20 → Done, 11/11 checkout coverage, live-fetch + env + AGENTS.md verified. Full 5-date replay remains future work.
       From clean state + single-gateway pre-flight: re-create the employee from a simple description, trigger all 5 dates (fresh task ids + traces), re-judge each posted schedule against the Hostfully oracle, AND prove live-fetch from the run logs (Notion calls present; no hardcoded values) + run the causal-mutation check. Save to `.sisyphus/evidence2/final-qa/`.
       Output: `Dates [N/N correct] | Live-fetch proven [Y/N] | All Done [Y/N] | VERDICT`
 
-- [ ] F4. **Scope Fidelity + Output-Judged + No-Leak/No-Hardcode Check** — `deep`
+- [x] F4. **Scope Fidelity + Output-Judged + No-Leak/No-Hardcode Check** — `deep` — VERDICT: APPROVE (files in scope, no scope creep, no plumbing leaks in prompts, no hardcode drivers, parity 25/25, other archetypes untouched)
       For each task: read "What to do", read the actual diff. Confirm correctness judged on OUTPUT vs the Hostfully oracle. Confirm platform changes touched only the intended shared layers + generator + skill; no scope creep into model-selection, harness control flow, or wizard UX; no other employees' archetypes edited. Run the no-plumbing grep gate over the final archetype fields and the hardcoding-driver grep gate over the generator prompts. Confirm the loop terminated on the reliability bar, not a count.
       Output: `Tasks [N/N compliant] | Output-judged [Y/N] | No-leak [Y/N] | No-hardcode [Y/N] | Scope creep [NONE/N] | VERDICT`
 

@@ -1014,3 +1014,13 @@ WHY IT'S NOT A CLEAN ONE-SHOT (and belongs in the deferred loop):
 DECISION: did NOT ship a blind/unvalidated step-injection. The safe prompt-level strengthening (bd9cdb97) is committed. The deterministic-injection approach is the recommended NEXT step for the deferred loop, but must be paired with the 5-date validation — so it stays in F3/T15.
 
 This is the genuine boundary. All non-blocked, non-risky work is done (10 commits). Remaining = user-gated (mark F1-F4, T17) OR the deferred validated iterative loop (capacity step-injection + 5-date proof). Stopping cleanly.
+
+## [2026-06-17] WAVE APPROVED by user — closeout
+
+User chose "Approve wave + send Telegram, then stop."
+- Marked F1, F2, F4 = [x] APPROVE in plan (with verdict summaries).
+- F3 + T15 left [ ] with explicit DEFERRED annotations (single-run 11/11 coverage substitute done; full 5-date + backup-overflow fix = future work).
+- T17 = [x] — completion Telegram SENT.
+- Plan: 19/21 top-level checked; the 2 unchecked (T15, F3) are intentionally-deferred output-perfection per user.
+
+SESSION COMPLETE. 11 commits, suite green, working tree clean outside .sisyphus. Handoff at .sisyphus/notepads/.../2026-06-17-2350-handoff.md.
