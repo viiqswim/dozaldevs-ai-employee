@@ -137,4 +137,17 @@ describe('generator-prompts parity', () => {
     expect(converse).toContain('coverage key');
     expect(converse).toContain('MUST come from the work item itself');
   });
+
+  // No-plumbing-leaks rule: shared ARCHETYPE_AUTHORING_RULES constant must propagate to both paths
+  it('SYSTEM_PROMPT_PRE contains no-plumbing-leaks rule with notification channel phrase', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain('No Plumbing Leaks');
+    expect(SYSTEM_PROMPT_PRE).toContain("the team's notification channel");
+    expect(SYSTEM_PROMPT_PRE).toContain('NO `/tools/');
+  });
+
+  it('buildConverseSystemPromptPre contains no-plumbing-leaks rule with notification channel phrase', () => {
+    expect(converse).toContain('No Plumbing Leaks');
+    expect(converse).toContain("the team's notification channel");
+    expect(converse).toContain('NO `/tools/');
+  });
 });
