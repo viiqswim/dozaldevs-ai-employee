@@ -60,4 +60,37 @@ describe('generator-prompts parity', () => {
     const convItems = (converse.match(/^\d+\. \*\*/gm) ?? []).length;
     expect(sysItems).toBe(convItems);
   });
+
+  // Grep-gate: forbidden phrases that caused hardcoded business data in generated steps
+  it('SYSTEM_PROMPT_PRE does not contain hardcode-calendar driver phrase', () => {
+    expect(SYSTEM_PROMPT_PRE).not.toContain('hardcode the full calendar');
+    expect(SYSTEM_PROMPT_PRE).not.toContain('do NOT read it from Notion');
+    expect(SYSTEM_PROMPT_PRE).not.toMatch(/Do NOT read .* from Notion/);
+  });
+
+  it('buildConverseSystemPromptPre does not contain hardcode-calendar driver phrase', () => {
+    expect(converse).not.toContain('hardcode the full calendar');
+    expect(converse).not.toContain('do NOT read it from Notion');
+    expect(converse).not.toMatch(/Do NOT read .* from Notion/);
+  });
+
+  it('SYSTEM_PROMPT_PRE contains CRITICAL distinction clause in Closed-Allowlist rule', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain(
+      'CRITICAL distinction**: UNASSIGNED means the key has NO coverage in the roster at all',
+    );
+  });
+
+  it('buildConverseSystemPromptPre contains CRITICAL distinction clause in Closed-Allowlist rule', () => {
+    expect(converse).toContain(
+      'CRITICAL distinction**: UNASSIGNED means the key has NO coverage in the roster at all',
+    );
+  });
+
+  it('SYSTEM_PROMPT_PRE contains Backup-Fallback Rule', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain('Backup-Fallback Rule');
+  });
+
+  it('buildConverseSystemPromptPre contains Backup-Fallback Rule', () => {
+    expect(converse).toContain('Backup-Fallback Rule');
+  });
 });
