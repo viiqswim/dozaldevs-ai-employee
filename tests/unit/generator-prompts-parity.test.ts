@@ -93,4 +93,26 @@ describe('generator-prompts parity', () => {
   it('buildConverseSystemPromptPre contains Backup-Fallback Rule', () => {
     expect(converse).toContain('Backup-Fallback Rule');
   });
+
+  it('SYSTEM_PROMPT_PRE contains REQUIRED VERBATIM PHRASE for closed-allowlist', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain('REQUIRED VERBATIM PHRASE');
+    expect(SYSTEM_PROMPT_PRE).toContain(
+      'This set is now CLOSED — a property is covered ONLY if its exact',
+    );
+  });
+
+  it('buildConverseSystemPromptPre contains REQUIRED VERBATIM PHRASE for closed-allowlist', () => {
+    expect(converse).toContain('REQUIRED VERBATIM PHRASE');
+    expect(converse).toContain('This set is now CLOSED — a property is covered ONLY if its exact');
+  });
+
+  it('SYSTEM_PROMPT_PRE forbids determining key from non-roster source', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain(
+      "NEVER determine a property's key from the property directory",
+    );
+  });
+
+  it('buildConverseSystemPromptPre forbids determining key from non-roster source', () => {
+    expect(converse).toContain("NEVER determine a property's key from the property directory");
+  });
 });
