@@ -1,0 +1,103 @@
+# Task 8: Plumbing Relocation — Evidence
+
+## Changes Made
+
+### 1. `src/workers/lib/agents-md-compiler.mts`
+
+**New constants added:**
+
+#### `DATE_PARAMETERIZATION_RULES`
+- Position: 2.5 (after CRITICAL_DIRECTIVE, before execution-instructions)
+- Condition: `isDateParameterized(input)` — true when `executionSteps` or `deliverySteps` contains `INPUT_TARGET_DATE`
+- Content: Teaches the canonical `printenv INPUT_TARGET_DATE` read pattern and the exact `node -e "...getUTCDay()..."` day-of-week derivation command
+- Generic: not tied to any specific employee type
+
+#### `APPROVED_CONTENT_CONTEXT`
+- Position: 4 prefix (prepended to delivery-instructions wrapper, before `deliverySteps`)
+- Condition: Always injected (every delivery agent needs this context)
+- Content: Explains that `<approved-content>` XML is injected into the delivery prompt, instructs agent to parse from there, write to `/tmp/delivery-draft.txt`, and use `--text-file` flag
+
+**New helper function:**
+- `isDateParameterized(input: CompileAgentsMdInput): boolean` — checks if `executionSteps` or `deliverySteps` includes `INPUT_TARGET_DATE`
+
+**Injection logic:**
+```typescript
+// Position 2.5
+if (isDateParameterized(input)) {
+  parts.push(DATE_PARAMETERIZATION_RULES);
+}
+
+// Position 4 — delivery wrapper now includes APPROVED_CONTENT_CONTEXT
+parts.push([
+  '<delivery-instructions>',
+  DELIVERY_IMPORTANT,
+  '',
+  APPROVED_CONTENT_CONTEXT,   // <-- NEW
+  '',
+  input.deliverySteps.trimEnd(),
+  '',
+  STOP_DIRECTIVE,
+  '</delivery-instructions>',
+].join('\n'));
+```
+
+### 2. `src/workers/skills/tool-usage-reference/SKILL.md` (hand-written section only)
+
+**Added:**
+1. `--text-file <path>` flag to `post-message.ts` Optional flags list
+   - Explains: reads message body from a file, mutually exclusive with `--text`
+   - Example: `--text-file /tmp/delivery-draft.txt`
+
+2. "Delivery example with --text-file" subsection under post-message.ts
+   - Shows the pattern: extract from `<approved-content>`, write to `/tmp/delivery-draft.txt`, post with `--text-file`
+
+3. New `## Delivery Session Pattern` section
+   - 4-step standard delivery workflow
+   - Key invariants table: `/tmp/delivery-draft.txt` vs `/tmp/summary.txt` distinction
+   - Clarifies that delivery container cannot access execution container's `/tmp/` files
+
+### 3. `tests/fixtures/golden/compiled-agents-md.txt`
+- Regenerated via `GENERATE_GOLDEN=true pnpm test:unit -- golden-prompts`
+- Updated to reflect new APPROVED_CONTENT_CONTEXT in delivery-instructions wrapper
+- DATE_PARAMETERIZATION_RULES NOT in fixture (FIXED_COMPILE_INPUT has no INPUT_TARGET_DATE — correct)
+
+## Test Results
+
+**Before changes:** 6 test files failed (1 caused by stale golden fixture + 5 pre-existing)
+**After changes:** 5 test files failed (all 9 remaining failures are pre-existing — confirmed via git stash test)
+
+Pre-existing failures (NOT caused by this task):
+- `archetype-generator-golden.test.ts` — 1 failure
+- `archetype-generator-repair.test.ts` — 2 failures
+- `admin-archetypes-create.test.ts` — 2 failures
+- `admin-archetypes.test.ts` — 2 failures
+- `time-estimation-integration.test.ts` — 2 failures
+
+Golden fixture test: FIXED (compiled-agents-md matches golden fixture — now passes)
+
+**Lint:** PASS (no eslint errors)
+
+## Docker Build
+
+Started via tmux session `ai-worker-build`. Result pending — see EXIT_CODE in /tmp/worker-build.log.
+
+## Positioning Verification
+
+Compiled AGENTS.md section order:
+1. identity
+2. CRITICAL_DIRECTIVE
+2.5. DATE_PARAMETERIZATION_RULES (conditional — when INPUT_TARGET_DATE present)
+3. <execution-instructions> (EXEC_IMPORTANT + executionSteps + STOP_DIRECTIVE)
+4. <delivery-instructions> (DELIVERY_IMPORTANT + APPROVED_CONTENT_CONTEXT + deliverySteps + STOP_DIRECTIVE)
+5. Connected Apps (Composio) — conditional
+6. Custom Integrations — conditional
+7. Behavioral Rules — conditional
+8. Knowledge Base — conditional
+9. ## Platform Rules (base agents.md — stays thin, unchanged)
+
+DATE_PARAMETERIZATION_RULES appears BEFORE `## Platform Rules` — requirement met.
+APPROVED_CONTENT_CONTEXT is inside the delivery-instructions wrapper — appears before deliverySteps.
+
+## Base agents.md
+
+Confirmed: 16 lines, unchanged. No load-bearing mechanics added.

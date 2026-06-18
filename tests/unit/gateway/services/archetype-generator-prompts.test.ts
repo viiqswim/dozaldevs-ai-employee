@@ -127,18 +127,21 @@ describe('buildConverseSystemPromptPre — intent-level (no tsx /tools/ mandate)
   });
 });
 
-describe('REFINE_SYSTEM_PROMPT_PRE — intentionally NOT abstracted (still CLI-level)', () => {
-  // REFINE is deliberately left CLI-level; these guards fail loudly if the intent rewrite is mis-applied here.
-  it('STILL contains tsx /tools/ in the refine execution_steps rule', () => {
-    expect(REFINE_SYSTEM_PROMPT_PRE).toMatch(CLI_PATTERN);
+describe('REFINE_SYSTEM_PROMPT_PRE — intent-level (no tsx /tools/ mandate)', () => {
+  // REFINE is now intent-level like SYSTEM_PROMPT_PRE and buildConverseSystemPromptPre;
+  // these guards ensure CLI plumbing does NOT leak into the refine prompt.
+  it('mandates intent-level plain English descriptions (no CLI invocations) in the execution_steps rule', () => {
+    expect(REFINE_SYSTEM_PROMPT_PRE).toContain('intent-level plain English');
   });
 
-  it('STILL contains the explicit tsx /tools/platform/submit-output.ts FINAL STEP example', () => {
-    expect(REFINE_SYSTEM_PROMPT_PRE).toContain('tsx /tools/platform/submit-output.ts');
+  it('does NOT contain the explicit tsx /tools/platform/submit-output.ts FINAL STEP example', () => {
+    expect(REFINE_SYSTEM_PROMPT_PRE).not.toContain('tsx /tools/platform/submit-output.ts');
   });
 
-  it('STILL contains the includes-explicit-tsx mandate that converse no longer has', () => {
-    expect(REFINE_SYSTEM_PROMPT_PRE).toContain('includes explicit `tsx /tools/...` invocations');
+  it('does NOT contain the includes-explicit-tsx mandate (removed — refine is now intent-level like converse)', () => {
+    expect(REFINE_SYSTEM_PROMPT_PRE).not.toContain(
+      'includes explicit `tsx /tools/...` invocations',
+    );
   });
 });
 
@@ -215,7 +218,7 @@ describe('postProcess — delivery_steps default derivation', () => {
     expect(typeof result.delivery_steps).toBe('string');
   });
 
-  it('null-coerces a non-string delivery_steps rather than synthesizing content', async () => {
+  it('derives the default for a non-string delivery_steps (malformed → normalized → default)', async () => {
     const badDeliveryJson = JSON.stringify({
       role_name: 'bad-delivery-employee',
       identity: 'You are a test employee.',
@@ -236,7 +239,8 @@ describe('postProcess — delivery_steps default derivation', () => {
 
     const result = await gen.generate('An employee whose delivery_steps came back malformed');
 
-    expect(result.delivery_steps).toBeNull();
+    expect(typeof result.delivery_steps).toBe('string');
+    expect(result.delivery_steps).toBeTruthy();
   });
 });
 

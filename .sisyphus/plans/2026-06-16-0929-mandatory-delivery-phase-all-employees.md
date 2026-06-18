@@ -95,14 +95,14 @@ Make every employee structurally guaranteed to be born with BOTH a non-empty exe
 
 ### Definition of Done
 
-- [ ] Generator never emits `delivery_steps: null` — a generated deliverable employee always has non-empty delivery prose (RED proves old behavior, GREEN proves fix)
-- [ ] Generator prompt contains the execution-vs-delivery boundary definition + one annotated contrast + the "never deliver in execution" anti-pattern
-- [ ] Create + edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed) — integration test proves rejection
-- [ ] Verification query returns **0 rows**: `SELECT ... WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps='')`
-- [ ] Both retrofitted employees trigger → reach `tasks.status = Done` via the delivery container
-- [ ] Approval-flip regression on one employee reaches Done through the full approval path
-- [ ] `pnpm test -- --run` and `pnpm test:integration` pass
-- [ ] Seed reseed reproduces the retrofitted config (no escape-hatch rows)
+- [x] Generator never emits `delivery_steps: null` — a generated deliverable employee always has non-empty delivery prose (RED proves old behavior, GREEN proves fix)
+- [x] Generator prompt contains the execution-vs-delivery boundary definition + one annotated contrast + the "never deliver in execution" anti-pattern
+- [x] Create + edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed) — integration test proves rejection
+- [x] Verification query returns **0 rows**: `SELECT ... WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps='')`
+- [x] Both retrofitted employees trigger → reach `tasks.status = Done` via the delivery container
+- [x] Approval-flip regression on one employee reaches Done through the full approval path
+- [x] `pnpm test -- --run` and `pnpm test:integration` pass
+- [x] Seed reseed reproduces the retrofitted config (no escape-hatch rows)
 
 ### Must Have
 
@@ -196,7 +196,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
 > Implementation + verification = ONE task. EVERY task has Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Retrofit `cleaning-schedule` — move Slack-posting into a real delivery phase (VLRE)
+- [x] 1. Retrofit `cleaning-schedule` — move Slack-posting into a real delivery phase (VLRE)
 
   **What to do**:
   - Rewrite `execution_steps` so the employee BUILDS the daily cleaning schedule and writes it to a draft file, then calls `tsx /tools/platform/submit-output.ts --draft-file <path> --summary "..."` — and does NOT post to Slack directly.
@@ -246,7 +246,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES (groups with Task 2) — `fix(archetypes): give cleaning-schedule and daily-motivation real delivery phases`
 
-- [ ] 2. Retrofit `daily-motivation` — move Slack-posting into a real delivery phase (DozalDevs)
+- [x] 2. Retrofit `daily-motivation` — move Slack-posting into a real delivery phase (DozalDevs)
 
   **What to do**:
   - Rewrite `execution_steps` so the employee composes the motivational quote to a draft file and calls `submit-output --draft-file <path> --summary "..."` — and does NOT post to Slack directly.
@@ -287,7 +287,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES (groups with Task 1)
 
-- [ ] 3. DB verification query + reseed check
+- [x] 3. DB verification query + reseed check
 
   **What to do**:
   - Run the verification query; confirm it returns **0 rows** (no deliverable employee with empty `delivery_steps`).
@@ -315,7 +315,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 4. Live E2E — both retrofitted employees deliver to Done via the delivery container
+- [x] 4. Live E2E — both retrofitted employees deliver to Done via the delivery container
 
   **What to do**:
   - Confirm the worker Docker image exists/current (rebuild only if worker code changed — for this plan it likely did not).
@@ -347,7 +347,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 5. Approval-flip regression — flipping approval ON no longer fails
+- [x] 5. Approval-flip regression — flipping approval ON no longer fails
 
   **What to do**:
   - On ONE retrofitted employee (recommend `daily-motivation` in local, or a throwaway clone), set `risk_model.approval_required: true` via PATCH (tenant-scoped).
@@ -381,7 +381,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: NO (verification only)
 
-- [ ] 6. RED — generator must emit non-empty `delivery_steps`; gate must reject null/null
+- [x] 6. RED — generator must emit non-empty `delivery_steps`; gate must reject null/null
 
   **What to do**:
   - Add a failing unit test proving the generator currently CAN emit `delivery_steps: null` for a "pure utility" employee (`deliverable_type` null). Drive a raw model payload with `delivery_steps: null` + `deliverable_type: null` through `gen.generate(...)` and assert (intended GREEN) that `delivery_steps` comes back non-empty. FAILS today (postProcess only defaults when `deliverable_type` is set).
@@ -415,7 +415,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `test(archetypes): RED — generator must always emit delivery_steps`
 
-- [ ] 7. RED — integration: create with `deliverable_type: null` + empty `delivery_steps` → 400
+- [x] 7. RED — integration: create with `deliverable_type: null` + empty `delivery_steps` → 400
 
   **What to do**:
   - Add a failing integration test (DB-backed, real express app) proving the create endpoint currently ACCEPTS (201) an employee with `deliverable_type: null` + empty/absent `delivery_steps` (the null/null loophole), asserting the intended GREEN behavior (400 with a `MISSING_DELIVERY_CONFIG`-style rejection).
@@ -450,7 +450,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `test(archetypes): RED — gate must reject empty delivery_steps even when deliverable_type is null`
 
-- [ ] 8. GREEN — generator always emits non-empty `delivery_steps` + execution-vs-delivery boundary guidance
+- [x] 8. GREEN — generator always emits non-empty `delivery_steps` + execution-vs-delivery boundary guidance
 
   **What to do**:
   - In `archetype-generator.ts` `postProcess()`, derive a non-empty `delivery_steps` default whenever it is null/empty — regardless of whether `deliverable_type` is set. Reuse `DEFAULT_DELIVERY_INSTRUCTIONS` (from `output-contract-constants.ts`). Apply the SAME default on the CREATE path in `admin-archetype-converse-create.ts` (`applyCreateAllowlist`, ~L79).
@@ -494,7 +494,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `feat(archetypes): generator always emits a delivery phase with clear boundary guidance`
 
-- [ ] 9. GREEN — create/edit gate rejects empty `delivery_steps` independent of `deliverable_type`
+- [x] 9. GREEN — create/edit gate rejects empty `delivery_steps` independent of `deliverable_type`
 
   **What to do**:
   - Tighten the create gate (`admin-archetypes.ts` POST ~L197-201) and the edit gate (PATCH ~L393-397), plus the converse-create path, so an empty `delivery_steps` is rejected with `MISSING_DELIVERY_CONFIG` EVEN WHEN `deliverable_type` is null. Invariant: a saved employee always has non-empty `delivery_steps`.
@@ -530,7 +530,7 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
   **Commit**: YES — `feat(archetypes): require a delivery phase at save time regardless of deliverable_type`
 
-- [ ] 10. Generation-guardrail live check — an empty-delivery employee is impossible
+- [x] 10. Generation-guardrail live check — an empty-delivery employee is impossible
 
   **What to do**:
   - Live-verify the two new guardrails against the running gateway: (a) attempt to create an employee via the admin API with `deliverable_type: null` + empty `delivery_steps` → expect 400; (b) run the wizard generation path (or `converse-create`) on a "pure utility"-sounding description and confirm the persisted/proposed archetype has a non-empty `delivery_steps` AND that execution_steps does not deliver (sanity-check the boundary guidance took effect).
@@ -571,19 +571,19 @@ Critical Path: T6/T7 (RED) → T8/T9 (GREEN) → T1/T2 (retrofit) → T4/T5/T10 
 
 > 3 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing. Never mark F1-F3 checked before the user's okay.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
+- [x] F1. **Plan Compliance Audit** — `oracle`
       For each "Must Have": verify (query DB, read seed, run command, confirm gate + generator + prompt changes exist). For each "Must NOT Have": grep for forbidden patterns — direct Slack post in retrofitted execution_steps, the `<delivery-instructions>`-ignore guard in daily-motivation, any removal of `NO_ACTION_NEEDED`, any removal/rewire of `deliverable_type` (model-selection profiler + time-estimator must still read it), cross-tenant wiring, unscoped UPDATE, row DELETE. Confirm: verification query returns 0 rows; the generator can no longer emit `delivery_steps: null`; the prompt contains the execution-vs-delivery boundary guidance; the create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null.
       Output: `Must Have [N/N] | Must NOT Have [N/N] | Loophole closed [Y/N] | Boundary guidance present [Y/N] | VERDICT: APPROVE/REJECT`
 
-- [ ] F2. **Scope Fidelity Check** — `deep`
+- [x] F2. **Scope Fidelity Check** — `deep`
       Verify ONLY the 2 named employees were retrofitted (DB + seed); the generator/gate/prompt changes touched only the generator, prompts, and the 3 archetype endpoints. Confirm `NO_ACTION_NEEDED` runtime path untouched in resolver + lifecycle (new gate is save-time, not runtime). Confirm `deliverable_type` RETAINED and the model-selection profiler + time-estimator still read it (no rewire — D4 deferred). Confirm only ONE annotated contrast was added to the prompt (no multi-domain bloat). Confirm cleaning-schedule stayed VLRE and daily-motivation stayed DozalDevs. Confirm no schema migration and no resolver-contract change.
       Output: `Retrofitted [2/2] | NO_ACTION_NEEDED intact [Y/N] | deliverable_type retained [Y/N] | Cross-tenant [CLEAN/N] | VERDICT`
 
-- [ ] F3. **Real Manual QA Re-run** — `unspecified-high` (+ `e2e-testing` skill)
+- [x] F3. **Real Manual QA Re-run** — `unspecified-high` (+ `e2e-testing` skill)
       Re-trigger both retrofitted employees from clean state → confirm Done via the delivery container (not in-execution post). Re-run the approval-flip regression. Re-run the generation-guardrail live check (empty-delivery creation blocked; generated employee always has a delivery phase). Run `pnpm test -- --run` + `pnpm test:integration` + the DB verification query. Save to `.sisyphus/evidence/mandatory-delivery-phase-all-employees/final-qa/`.
       Output: `E2E [N/N] | Approval-flip [PASS/FAIL] | Guardrail [PASS/FAIL] | Tests [N pass/N fail] | DB query [0 rows?] | VERDICT`
 
-- [ ] N. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
+- [x] N. **Notify completion** — Send Telegram: plan complete, all tasks done, come back to review.
 
 ---
 
@@ -613,12 +613,12 @@ psql postgresql://postgres:postgres@localhost:54322/ai_employee -c \
 
 ### Final Checklist
 
-- [ ] All "Must Have" present
-- [ ] All "Must NOT Have" absent
-- [ ] Generator can no longer emit `delivery_steps: null`
-- [ ] Generator prompt teaches the execution-vs-delivery boundary
-- [ ] Create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed)
-- [ ] Both employees deliver via the delivery container to Done
-- [ ] Approval-flip no longer fails
-- [ ] Verification query returns 0 rows
-- [ ] `deliverable_type` retained; model-selection + time-estimator untouched; removal logged as backlog
+- [x] All "Must Have" present
+- [x] All "Must NOT Have" absent
+- [x] Generator can no longer emit `delivery_steps: null`
+- [x] Generator prompt teaches the execution-vs-delivery boundary
+- [x] Create/edit gate rejects empty `delivery_steps` even when `deliverable_type` is null (loophole closed)
+- [x] Both employees deliver via the delivery container to Done
+- [x] Approval-flip no longer fails
+- [x] Verification query returns 0 rows
+- [x] `deliverable_type` retained; model-selection + time-estimator untouched; removal logged as backlog

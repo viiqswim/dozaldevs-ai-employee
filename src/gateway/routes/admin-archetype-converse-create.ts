@@ -76,7 +76,7 @@ function applyCreateAllowlist(
   raw: GenerateArchetypeResponse,
 ): StrippedProposal & { role_name?: string; model?: string; runtime?: 'opencode' } {
   const deliverySteps =
-    raw.delivery_steps === null && raw.deliverable_type
+    raw.delivery_steps === null || raw.delivery_steps.trim().length === 0
       ? DEFAULT_DELIVERY_INSTRUCTIONS
       : raw.delivery_steps;
   return {
@@ -208,6 +208,7 @@ export function adminArchetypeConverseCreateRoutes(
         }
 
         const stripped = applyCreateAllowlist(result.proposal);
+        const strippedBaseline = applyCreateAllowlist(baseline);
         const currentTools = baseline.tool_registry?.tools ?? [];
 
         const validation = validateProposalFields(
@@ -259,8 +260,8 @@ export function adminArchetypeConverseCreateRoutes(
           'delivery_steps',
           'overview',
         ] as const) {
-          if (!deepEqual(baseline[field], stripped[field])) {
-            changedFields[field] = { before: baseline[field], after: stripped[field] };
+          if (!deepEqual(strippedBaseline[field], stripped[field])) {
+            changedFields[field] = { before: strippedBaseline[field], after: stripped[field] };
           }
         }
 
@@ -297,7 +298,7 @@ export function adminArchetypeConverseCreateRoutes(
 
         const response: Record<string, unknown> = {
           kind: 'proposal',
-          baseline: applyCreateAllowlist(baseline),
+          baseline: strippedBaseline,
           proposal: stripped,
           changed_fields: changedFields,
         };

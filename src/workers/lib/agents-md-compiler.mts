@@ -196,6 +196,36 @@ function buildCustomIntegrationsSection(services: string[]): string | null {
 const CRITICAL_DIRECTIVE =
   '**CRITICAL: You MUST use the bash tool to execute every command in your instructions. Do NOT describe what you would do — EXECUTE it. A text-only response is a failure.**';
 
+/**
+ * Injected at position 2.5 (after CRITICAL_DIRECTIVE, before execution-instructions)
+ * when the archetype is date-parameterized. Teaches the canonical way to read and
+ * derive dates from the INPUT_TARGET_DATE environment variable. Generic — not
+ * tied to any specific employee type.
+ */
+const DATE_PARAMETERIZATION_RULES = `## Date Parameterization
+
+When your task includes a target date, it is available via the \`INPUT_TARGET_DATE\` environment variable. Always read it with:
+
+\`\`\`bash
+printenv INPUT_TARGET_DATE
+\`\`\`
+
+Derive the day of week from that value using:
+
+\`\`\`bash
+node -e "const d=new Date(process.env.INPUT_TARGET_DATE+'T12:00:00Z'); const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; console.log(days[d.getUTCDay()]);"
+\`\`\`
+
+Never use the system date (\`date\` command) for the target date — always read \`INPUT_TARGET_DATE\`. Never derive the day of week from the system clock.`;
+
+/**
+ * Prepended to the <delivery-instructions> wrapper. Explains to the delivery agent
+ * how the approved content is provided in the delivery prompt. Generic platform
+ * contract — always injected so every delivery agent knows where to find its content.
+ */
+const APPROVED_CONTENT_CONTEXT =
+  '**Delivery context:** The approved content to deliver is injected into this prompt as `<approved-content>...</approved-content>` XML. Parse it from there — do NOT re-fetch or re-generate the content. Use exactly what is in `<approved-content>`. Write it to `/tmp/delivery-draft.txt` and pass that file to the appropriate delivery tool with `--text-file /tmp/delivery-draft.txt`.';
+
 const EXEC_IMPORTANT =
   '**IMPORTANT: Follow ONLY these steps. Do NOT read or follow `<delivery-instructions>` — that section is for a separate container. STOP after the final step.**';
 
@@ -203,6 +233,24 @@ const DELIVERY_IMPORTANT =
   '**IMPORTANT: Follow ONLY these steps. Do NOT read or follow `<execution-instructions>` — that section is for a separate container. STOP after the final step.**';
 
 const STOP_DIRECTIVE = '**STOP. Do nothing else. Your job is done.**';
+
+/**
+ * Returns true when the archetype's execution or delivery steps reference
+ * INPUT_TARGET_DATE, indicating this is a date-parameterized employee.
+ * The check is generic — any mention triggers injection of
+ * DATE_PARAMETERIZATION_RULES regardless of which employee type it is.
+ *
+ * Note: wizard-generated archetypes use {{target_date}} template syntax which
+ * is resolved to the actual date value by substituteTemplateVars() in the
+ * execution/delivery phase BEFORE the model sees the compiled AGENTS.md.
+ * Those archetypes therefore do NOT need DATE_PARAMETERIZATION_RULES injected —
+ * the date is already inline in the text. Only legacy/manual archetypes that
+ * reference INPUT_TARGET_DATE directly need this section.
+ */
+function isDateParameterized(input: CompileAgentsMdInput): boolean {
+  const combined = input.executionSteps + ' ' + input.deliverySteps;
+  return combined.includes('INPUT_TARGET_DATE');
+}
 
 /**
  * Strips STOP-like directives that archetypes may have embedded in their
@@ -233,6 +281,13 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
   parts.push(input.identity.trimEnd());
   parts.push(CRITICAL_DIRECTIVE);
 
+  // Position 2.5: inject date-parameterization rules when the archetype uses
+  // INPUT_TARGET_DATE. Appears before execution-instructions so the employee
+  // reads the date-handling contract before starting any steps.
+  if (isDateParameterized(input)) {
+    parts.push(DATE_PARAMETERIZATION_RULES);
+  }
+
   parts.push(
     [
       '<execution-instructions>',
@@ -249,6 +304,8 @@ export function compileAgentsMd(input: CompileAgentsMdInput): string {
     [
       '<delivery-instructions>',
       DELIVERY_IMPORTANT,
+      '',
+      APPROVED_CONTENT_CONTEXT,
       '',
       input.deliverySteps.trimEnd(),
       '',

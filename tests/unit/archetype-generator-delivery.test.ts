@@ -1,5 +1,6 @@
-// RED-phase TDD: cases (a) and (c) are EXPECTED to fail until the generator
-// delivery-default fix lands. Do not "fix" by deleting these tests.
+// Generator delivery-default invariant: postProcess() always derives a non-empty
+// delivery_steps. Cases (a), (c), (d) cover deliverable_type set, mirror-rule, and the
+// null/null loophole respectively. Do not reintroduce a null-passthrough assertion.
 import { describe, it, expect, vi } from 'vitest';
 import type { callLLM } from '../../src/lib/call-llm.js';
 import { ArchetypeGenerator } from '../../src/gateway/services/archetype-generator.js';
@@ -64,9 +65,9 @@ describe('postProcess() delivery_steps default derivation (via generate())', () 
     expect((result.delivery_steps as string).length).toBeGreaterThan(0);
   });
 
-  it('(b) ESCAPE HATCH: deliverable_type null + delivery_steps null → stays null (preserved)', async () => {
+  it('(c) MIRROR RULE BUG: deliverable_type set + delivery_steps null + delivery_instructions null → still derives a default', async () => {
     const raw = makeRawModelOutput({
-      deliverable_type: null,
+      deliverable_type: 'slack_message',
       delivery_steps: null,
       delivery_instructions: null,
     });
@@ -74,12 +75,14 @@ describe('postProcess() delivery_steps default derivation (via generate())', () 
 
     const result = await gen.generate(DESCRIPTION);
 
-    expect(result.delivery_steps).toBeNull();
+    expect(typeof result.delivery_steps).toBe('string');
+    expect(result.delivery_steps).toBeTruthy();
+    expect((result.delivery_steps as string).length).toBeGreaterThan(0);
   });
 
-  it('(c) MIRROR RULE BUG: deliverable_type set + delivery_steps null + delivery_instructions null → still derives a default', async () => {
+  it('(d) NULL/NULL LOOPHOLE: deliverable_type null + delivery_steps null → still derives a non-empty default', async () => {
     const raw = makeRawModelOutput({
-      deliverable_type: 'slack_message',
+      deliverable_type: null,
       delivery_steps: null,
       delivery_instructions: null,
     });

@@ -291,7 +291,9 @@ export function createSessionManager(baseUrl: string): SessionManager {
     async injectTaskPrompt(sessionId: string, prompt: string): Promise<boolean> {
       const providerID = process.env.OPENCODE_PROVIDER_ID ?? 'openrouter';
       const modelID =
-        process.env.OPENROUTER_MODEL ?? process.env.OPENCODE_MODEL_ID ?? 'minimax/minimax-m2.7';
+        process.env.OPENROUTER_MODEL ??
+        process.env.OPENCODE_MODEL_ID ??
+        'deepseek/deepseek-v4-flash';
       try {
         await client.session.promptAsync({
           path: { id: sessionId },
@@ -382,7 +384,7 @@ Please analyze this error and fix the issue. Make the minimal changes needed to 
               modelID:
                 process.env.OPENROUTER_MODEL ??
                 process.env.OPENCODE_MODEL_ID ??
-                'minimax/minimax-m2.7',
+                'deepseek/deepseek-v4-flash',
             },
           },
         });

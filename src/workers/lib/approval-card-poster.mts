@@ -50,11 +50,16 @@ export function buildApprovalBlocks(data: ApprovalBlockData): KnownBlock[] {
   ];
 
   if (data.draft) {
+    // Slack mrkdwn section blocks hard-cap at 3000 characters total (inclusive of prefix).
+    // The prefix "*Draft response:*\n" is 18 chars, leaving 2982 chars for the draft body.
+    const DRAFT_PREFIX = '*Draft response:*\n';
+    const SECTION_MAX = 3000;
+    const draftBody = data.draft.slice(0, SECTION_MAX - DRAFT_PREFIX.length);
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Draft response:*\n${data.draft.slice(0, 3000)}`,
+        text: `${DRAFT_PREFIX}${draftBody}`,
       },
     } as KnownBlock);
   }

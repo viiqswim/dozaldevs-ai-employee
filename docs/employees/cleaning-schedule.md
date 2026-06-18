@@ -87,6 +87,25 @@ Hostfully property names use a full code format (e.g. `271-GIN-HOME`). The Notio
 
 The employee reads Notion pages via `tsx /tools/composio/execute.ts --toolkit notion --action NOTION_GET_PAGE_MARKDOWN --params '{"page_id":"<id>"}'`. If Composio returns a 400 or "not connected" error, the Notion toolkit is not connected for this tenant. Re-run the Composio OAuth flow (see Setup Checklist step 1).
 
+### Local `.env` Slack token is expired — use `tenant_secrets`
+
+`SLACK_BOT_TOKEN` in `.env` is a long-lived seed value that expires. For E2E verification (e.g. fetching the posted schedule from Slack), use the live token from the DB:
+
+```bash
+source .env
+node -e "
+const { decrypt } = require('./src/lib/encryption.js');
+const { PrismaClient } = require('@prisma/client');
+const db = new PrismaClient();
+db.tenantSecret.findFirst({ where: { tenantId: '00000000-0000-0000-0000-000000000003', key: 'slack_bot_token' } })
+  .then(r => { console.log(decrypt(r.value, process.env.ENCRYPTION_KEY)); db.\$disconnect(); });
+" 2>/dev/null
+```
+
+### Schedule is posted as a thread reply, not a standalone message
+
+The schedule content appears as a **reply thread** under the `✅ Task complete` notification in `#ops-cleaning-schedule`. If you check the channel and only see the notification card, expand its thread — the full schedule is there. Use `conversations.replies` (not `conversations.history`) to fetch it programmatically.
+
 ## E2E Testing
 
 1. Ensure services are running: `curl localhost:7700/health`

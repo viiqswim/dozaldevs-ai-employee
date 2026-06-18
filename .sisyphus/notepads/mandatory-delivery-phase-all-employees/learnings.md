@@ -1,0 +1,492 @@
+# Learnings — mandatory-delivery-phase-all-employees
+
+## [2026-06-16] Inherited from enforce-execution-delivery-phases plan
+
+### Key Architecture Facts (from prior plan)
+
+- `delivery_instructions` column DROPPED in prior plan migration — do NOT reference it anywhere
+- `delivery_steps` is the SOLE canonical delivery field
+- `src/lib/delivery-resolver.ts` is the shared resolver — used by all 3 lifecycle gates
+- Hard gate at POST/PATCH rejects `deliverable_type` set + empty `delivery_steps` (but NOT null/null — that's the loophole this plan closes)
+- `DEFAULT_DELIVERY_INSTRUCTIONS` in `src/lib/output-contract-constants.ts` — use for defaults
+- `ERROR_CODES.MISSING_DELIVERY_CONFIG` already added to `src/gateway/lib/prisma-helpers.ts`
+- PATCH gate is CONDITIONAL — only fires when patch touches a delivery field (deliverable_type or delivery_steps)
+- `pnpm test -- --run` drops to watch mode — use `CI=true pnpm exec vitest run` for one-shot
+- Integration tests: `pnpm exec vitest run --config vitest.integration.config.ts <file>`
+- `cleanupGateArchetypes()` in integration tests keys on `role_name startsWith 'gate-test-'`
+- Must delete archetypeEditHistory children FIRST before deleting archetypes (FK onDelete:Restrict)
+
+### Escape Hatch Employees (THIS PLAN'S TARGETS)
+
+- `cleaning-schedule` (VLRE tenant `00000000-0000-0000-0000-000000000003`): deliverable_type=slack_message, delivery_steps=NULL, approval_required=false. Posts to Slack WITHIN execution.
+- `daily-motivation` (DozalDevs tenant `00000000-0000-0000-0000-000000000002`): deliverable_type=slack_message, delivery_steps=NULL, approval_required=false. Has "Do NOT read or follow <delivery-instructions>" guard that MUST be removed.
+
+### --draft-file Handoff Convention
+
+- Execution writes deliverable to a draft file, calls `tsx /tools/platform/submit-output.ts --draft-file <path> --summary "..."`
+- Delivery container receives content in `<approved-content>` XML block
+- Retrofitted execution_steps must NOT call `post-message` directly
+
+### Approval Mechanism (no REST endpoint)
+
+- Approval = Slack button → Inngest event `employee/approval.received`
+- Manual E2E fallback: `curl -X POST localhost:8288/e/local -d '{"name":"employee/approval.received","data":{"taskId":"...","action":"approve","userId":"...","userName":"..."}}'`
+
+### Generator postProcess() (archetype-generator.ts)
+
+- After prior plan: derives default delivery_steps ONLY when deliverable_type is set
+- This plan: must derive default REGARDLESS of deliverable_type (close null/null loophole)
+- Location: ~L362-366 in archetype-generator.ts
+
+### Generator Prompt (archetype-generator-prompts.ts)
+
+- L281: "Set to null ONLY when deliverable_type is also null (pure utility employees)" — MUST REMOVE
+- L208-223: delivery templates (Template A: Slack, Template B: external)
+- After this plan: must add "What Goes Where" boundary section (definitions + one annotated contrast + anti-pattern rule)
+
+### Gate Locations
+
+- POST: admin-archetypes.ts ~L197-201
+- PATCH: admin-archetypes.ts ~L393-397
+- CREATE path: admin-archetype-converse-create.ts ~L79
+
+### Golden Fixture
+
+- Regenerate after prompt text change: `GENERATE_GOLDEN=true pnpm exec vitest run tests/unit/golden-prompts.test.ts`
+- Then commit the fixture
+
+### Test Patterns
+
+- Unit tests at root tests/unit/ use `../../src/...` (2 levels) import depth
+- Nested tests/unit/gateway/services/ use `../../../../src/...` (4 levels)
+- `makeRoutingLLM` mock pattern from archetype-generator-golden.test.ts
+- DESCRIPTION must NOT match isCodeWritingEmployee() CODE_PHRASE_PATTERNS
+
+### DB Connection
+
+- `postgresql://postgres:postgres@localhost:54322/ai_employee`
+- Test DB: `ai_employee_test`
+
+### Existing Test Files (must stay green)
+
+- `tests/unit/archetype-generator-delivery.test.ts` — prior plan's generator-default tests
+- `tests/integration/archetypes-delivery-gate.test.ts` — prior plan's 4 gate tests
+- `tests/unit/golden-prompts.test.ts` — golden fixture (regenerate after prompt change)
+
+## [2026-06-16] Task 1 — cleaning-schedule retrofit (COMPLETE)
+
+### Confirmed lifecycle facts (verified from code, not assumed)
+
+- `resolveDelivery()` rule 1 (src/lib/delivery-resolver.ts:38): non-empty `delivery_steps`
+  → `has-delivery` REGARDLESS of classification. So an approval-free employee with
+  NO_ACTION_NEEDED + non-empty delivery_steps STILL spawns the delivery container.
+  This is exactly how the escape-hatch loophole gets closed: once delivery_steps is
+  set, posting moves out of execution into delivery automatically.
+- Route: validate-and-submit.ts:66 `if (!approvalRequired) runNoApprovalPath(...)`.
+- Draft handoff chain: submit-output.ts --draft-file → reads file → `draft` field in
+  /tmp/summary.txt JSON → deliverables.content (execution-phase.mts:369) →
+  `<approved-content>` in delivery prompt (delivery-phase.mts:95).
+- $NOTIFICATION_CHANNEL is injected by tenant-env-loader.ts:70 from
+  archetype.notification_channel (C0B71QSMZKQ for cleaning-schedule) and spread into
+  the delivery container via delivery-retry.ts (tenantEnvForDelivery). So delivery_steps
+  can safely reference "$NOTIFICATION_CHANNEL".
+- Delivery confirmation (delivery-phase.mts:243): summary.txt must have delivered:true
+  OR a non-empty summary field. submit-output --summary satisfies this.
+
+### Reference employee for approval-free Slack split
+
+- `jira-motivation-bot` (VLRE, seed.ts ~3428): approval_required:false + slack_message +
+  non-empty delivery_steps + execution ends with submit-output --classification NO_ACTION_NEEDED.
+  Best analog for cleaning-schedule. (daily-summarizer is approval_required:TRUE — uses
+  NEEDS_APPROVAL + --draft, different path.)
+
+### Gotchas hit this task
+
+- The execution-phase guard prose "Do NOT call any Slack post-message tool" literally
+  contained the substring `post-message` → would FALSE-positive the verification
+  `execution_steps LIKE '%post-message%'`. Reworded to "Do NOT publish to Slack". Watch
+  this in T2 (daily-motivation) — avoid the literal substring `post-message` anywhere in
+  execution_steps prose.
+- `.env` line ~96 (GITHUB_PRIVATE_KEY with literal \n) breaks `source .env` in zsh
+  (`parse error near \n`). Read SERVICE_TOKEN directly via grep `^SERVICE_TOKEN=` instead.
+  Value: hardcode-read from .env line 20.
+- PATCH with huge multi-line content: build payload via a Node script
+  (JSON.stringify handles all escaping) writing to /tmp/cs-patch.json, then
+  `curl --data-binary @/tmp/cs-patch.json`. Add in-script assertions (post-message
+  gone, --draft-file present) BEFORE writing the payload — fail fast.
+- `tsc --noEmit prisma/seed.ts` on a single file errors on `import.meta` (TS1343) —
+  that's a module-config artifact, NOT a real error. Use
+  `ts.transpileModule(src,{module:'esnext'})` to check for genuine syntax diagnostics.
+- CAUTION: `tsx --eval "import('./prisma/seed.ts')"` actually RUNS the seed (top-level
+  await executes). It's idempotent upserts so harmless, but re-verify DB state after.
+  Prefer transpileModule for a pure syntax check that does NOT execute.
+
+### Verification result (all 7 checks pass)
+
+deliverable_type=slack_message | delivery_nonempty=t | exec_has_submit_output=t |
+exec_has_draft_file=t | exec_has_post_message=f | delivery_has_post_message=t |
+delivery_uses_notif_channel=t. delivery_steps len=953.
+
+## [2026-06-16] Task 7 — RED test for null/null loophole (COMPLETE)
+
+### What was added
+
+- 5th test case `(e)` in `tests/integration/archetypes-delivery-gate.test.ts`
+- POSTs `deliverable_type: null` + `delivery_steps: ''` → asserts 400 `MISSING_DELIVERY_CONFIG`
+- This is the inverse of existing test `(b)` which asserts the same input returns 201
+  (the escape-hatch). Test (b) and (e) are mutually exclusive — Task 9's GREEN fix must
+  flip (b) too, or (b) will start failing. NOTE FOR T9: when closing the loophole,
+  test (b) at L77-99 MUST be updated/removed since it codifies the OLD escape-hatch behavior.
+
+### RED proof
+
+- On current code: resolveDelivery() returns `no-delivery-escape-hatch` for null/null
+  (delivery-resolver.ts:48 `deliverable_type != null` is false → falls through to rule 4).
+  POST handler only rejects `misconfigured`, so null/null → 201. New test (e) expects 400
+  → FAILS today (genuine RED).
+- Role-name prefix `gate-test-null-null-reject` matches cleanupGateArchetypes prefix.
+
+## [2026-06-16] Task 6 — RED test for null/null GENERATOR loophole (COMPLETE)
+
+### What the existing test file already contained (key discovery)
+
+- `tests/unit/archetype-generator-delivery.test.ts` already had cases (a)(b)(c).
+- Case (b) ALREADY drives the EXACT null/null input (deliverable_type:null +
+  delivery_steps:null) but asserts the LEGACY behavior `expect(delivery_steps).toBeNull()`.
+  On current code (b) PASSES (escape hatch still open). My new case (d) drives the SAME
+  null/null input but asserts the NEW invariant (non-empty string) → FAILS today.
+- File header comment (lines 1-2) claimed (a)+(c) are RED, but the prior plan already
+  shipped the deliverable_type-set default in postProcess() — so (a)(b)(c) ALL pass now.
+  Only my new (d) is genuinely RED. Header comment is stale; left untouched (not my scope).
+
+### Task 8 reconciliation note (for whoever does GREEN — mirrors T7's note on test b)
+
+- When Task 8 closes the loophole, UNIT case (b)'s `toBeNull()` assertion WILL BREAK (it
+  expects the legacy null passthrough). Task 8 MUST update case (b) to the new invariant
+  (or delete it as superseded by (d)). Plan's Task 8 "update older tests that encoded the
+  now-removed null-passthrough behavior" covers this. My (d) inline comment flags it.
+  (Symmetric with T7's integration test (b) at L77-99 that T9 must flip.)
+
+### RED proof (genuine, exit 1)
+
+- Failure: `expected 'object' to be 'string'` — typeof null === 'object'. delivery_steps
+  came back null on current code = generator loophole confirmed. 3 prior tests (a)(b)(c)
+  stay green (didn't break prior plan).
+- Genuine exit captured via redirect: `CI=true pnpm exec vitest run <file> > /tmp/f 2>&1;
+echo "EXIT:$?" >> /tmp/f`. `| tee` would mask it (PIPESTATUS gotcha from learnings).
+- Evidence: .sisyphus/evidence/.../task-6-red.txt (EXIT:1).
+
+## [2026-06-16] Task 2 — daily-motivation retrofit (COMPLETE)
+
+### BIG SURPRISE: daily-motivation is WIZARD-CREATED, NOT in seed.ts
+
+- UUID is `a360b2e6-7dcc-410d-a17b-8d51e21c74ed` (random wizard UUID, NOT seed-style
+  `00000000-...`). `grep "daily-motivation" prisma/seed.ts` returns ZERO matches.
+- Task premise ("update create + update blocks") assumed it was seeded. It was NOT.
+- RESOLUTION: ADDED a brand-new upsert block to seed.ts (after the DozalDevs summarizer,
+  ~L3172) using the real wizard UUID so a future `db seed` upserts the SAME row. create
+  has tenant_id, update omits it (immutable rule). Outcome "seed.ts create+update blocks
+  have non-empty delivery_steps" is satisfied by the new block.
+
+### Schema is the NEWER variant (identity/execution_steps/delivery_steps)
+
+- archetypes table has NO `system_prompt`, NO `instructions`, NO `delivery_instructions`
+  columns. Fields: identity, execution_steps, delivery_steps, execution_instructions,
+  deliverable_type, enforce_tool_registry. (Confirmed via `\d archetypes`.)
+- `execution_steps` and `execution_instructions` were IDENTICAL in the bad DB row (both
+  held post-message + ignore-guard). BUT only `execution_steps` matters:
+  - execution_steps → compiled into /app/AGENTS.md `<execution-instructions>` block
+    (execution-phase.mts:254 → compileAgentsMd). ALL 7 verification checks target this.
+  - execution_instructions → NOT consumed by harness. The harness injects the platform
+    constant `EXECUTION_PROMPT` as the initial message (execution-phase.mts:133-135),
+    NOT execution_instructions. So the prescribed 2-field PATCH (execution_steps +
+    delivery_steps) is correct & sufficient. PATCH route maps body.instructions →
+    execution_instructions (admin-archetypes.ts:457) but we don't send `instructions`,
+    so execution_instructions keeps stale content harmlessly (not checked, not consumed).
+
+### Compiler ALREADY owns the exec/delivery guard — embedded guard is redundant AND wrong
+
+- agents-md-compiler.mts:199-203 injects its OWN platform `EXEC_IMPORTANT`
+  ("Do NOT read or follow <delivery-instructions> ... STOP after the final step") and
+  `stripEmbeddedStopDirectives()` (L218) removes archetype-embedded `**STOP`/`**IMPORTANT:..STOP`
+  lines. So the archetype's "STOP after step 3" guard was both wrong (3 steps no longer
+  the boundary) AND redundant. Removing it from execution_steps is strictly correct.
+
+### $NOTIFICATION_CHANNEL resolves even with archetype.notification_channel = NULL
+
+- notification-channel.ts:5 early-returns '' when archetype.notification_channel === null.
+- BUT tenant-env-loader.ts:66 passes `archetypeNotificationChannel ?? undefined` — converts
+  null→undefined BEFORE the resolver, bypassing the early-return. So it falls through to
+  tenant.config.notification_channel = `C0AUBMXKVNU` (DozalDevs). Delivery WILL post.
+  Did NOT need to set archetype.notification_channel. (Subtle null-vs-undefined behavior.)
+
+### Repeatable mechanics that worked
+
+- SERVICE_TOKEN via `grep -E "^SERVICE_TOKEN=" .env` (learnings: `source .env` breaks in
+  zsh on the GITHUB_PRIVATE_KEY \n line).
+- PATCH via Node script (.sisyphus/tmp-\*.mjs): JSON.stringify handles all escaping; put
+  fail-fast assertions (no post-message, has --draft-file, etc.) BEFORE the fetch. Deleted
+  the temp script after use.
+- seed.ts syntax check WITHOUT executing it: `ts.transpileModule(src,{module:'esnext'})`
+  filtering code 1343 (import.meta artifact). LSP TS server was unavailable
+  (no typescript-language-server version set) so transpileModule was the fallback.
+
+### Verification result (all 7 checks pass)
+
+deliverable_type=slack_message | delivery_nonempty=t | exec_has_submit_output=t |
+exec_has_draft_file=t | exec_has_post_message=f | exec_has_ignore_guard=f |
+delivery_has_post_message=t | delivery_uses_notif_channel=t. delivery_steps len=877.
+
+## [2026-06-16] Task 8 — GREEN: generator always emits non-empty delivery_steps (COMPLETE)
+
+### The fix (3 code sites, same logic)
+
+- postProcess() (archetype-generator.ts ~L362): two-stage now. (1) malformed non-string →
+  null; (2) if null OR blank → ALWAYS DEFAULT_DELIVERY_INSTRUCTIONS, regardless of
+  deliverable_type. The `.trim().length === 0` check matters — a model could emit "" not
+  just null.
+- applyCreateAllowlist() (admin-archetype-converse-create.ts ~L78): `raw.delivery_steps ===
+null || raw.delivery_steps.trim().length === 0 ? DEFAULT : raw.delivery_steps`. Mirror of
+  postProcess.
+- Prompt (archetype-generator-prompts.ts): removed BOTH null carve-outs (SYSTEM_PROMPT_POST
+  L281 AND the SYSTEM_PROMPT_PRE "Set to null ONLY if approval_required is false..." line).
+  Added "## What Goes Where" section (defs + 1 contrast + anti-pattern).
+
+### CRITICAL gotcha — converse-create baseline comparison must use strippedBaseline
+
+- The empty-baseline `no_change` test (admin-archetype-converse-create.test.ts L278) sends a
+  proposal identical to the empty baseline (identity:'', delivery_steps:null, etc.) and
+  expects {kind:no_change}.
+- The route's response.baseline runs through applyCreateAllowlist (so its delivery_steps
+  becomes the DEFAULT), but the changed_fields loop compared against the RAW baseline
+  (delivery_steps:null). After my fix, proposal.delivery_steps also becomes DEFAULT →
+  mismatch with raw null → delivery_steps falsely flagged "changed" → test would BREAK.
+- FIX: hoist `const strippedBaseline = applyCreateAllowlist(baseline)` once; use it in BOTH
+  the changed_fields comparison loop AND response.baseline. Now baseline+proposal derive the
+  same default → no false diff. Test stays green. This is the non-obvious coupling of T8.
+
+### Case (b) deletion (not just update)
+
+- Plan said "update OR delete (b)". Chose DELETE: case (b) and case (d) drive the IDENTICAL
+  null/null input. (b) asserted toBeNull (legacy), (d) asserts non-empty (new). Keeping both
+  = contradictory tests on same input. (d) supersedes (b) verbatim. Also fixed the stale
+  file-header RED notice (claimed a/c fail — they pass) and (d)'s inline ref to deleted (b).
+
+### EDIT path deliberately untouched
+
+- archetype-edit-helpers.test.ts L108 `delivery_steps toBeNull` is CORRECT and stays:
+  mapArchetypeRowToConfig faithfully reads an existing DB row (EDIT path). The abstraction
+  is GENERATE + converse-create CREATE branch ONLY. Did not touch refine()/propose-edit.
+
+### Verification
+
+- Affected suite: 80 passed (delivery + prompts + converse-create + golden).
+- Broader archetype suite: 52 passed (propose-edit + edit-helpers + enforce-gate +
+  patch-identity). pnpm build EXIT_CODE:0.
+- Golden fixture (system-prompt.txt) regenerated — prompt text changed so this is mandatory,
+  else golden-prompts.test.ts byte-compare fails on next run.
+
+## [2026-06-16] Task 9 — GREEN: close null/null GATE loophole (admin-archetypes.ts) (COMPLETE)
+
+### Division of labor with T8 (ran concurrently)
+
+- T8 fixed the GENERATOR + converse-create CREATE allowlist (commit 02703d88). T9 fixes
+  the POST/PATCH save-time GATE in admin-archetypes.ts. So when I went to edit
+  converse-create's applyCreateAllowlist, it was ALREADY done by T8 — git diff showed it
+  unchanged-from-HEAD but on-disk it already had the `|| trim().length === 0` default.
+  Confirmed via `git log -S 'trim().length === 0' -- <file>` → 02703d88. No edit needed.
+- Lesson: in a multi-task plan where tasks run in parallel, ALWAYS `git log -S` a line
+  before editing — a sibling task may have already shipped it.
+
+### POST gate: removed resolveDelivery() call AND its import
+
+- OLD null/null → resolveDelivery rule 4 `no-delivery-escape-hatch` (NOT misconfigured) → 201. NEW: direct `if (!rest.delivery_steps || rest.delivery_steps.trim() === '')` → 400,
+  regardless of deliverable_type. resolveDelivery became unused in this file → had to
+  delete `import { resolveDelivery }` or tsc/lint fails on unused import. (A lingering
+  comment still NAMES resolveDelivery to document the runtime escape hatch lives elsewhere
+  — that's fine, comments don't count as usage.)
+
+### PATCH gate: kept conditional, swapped resolver → effective-value empty check
+
+- Condition UNCHANGED (`rest.deliverable_type !== undefined || rest.delivery_steps !==
+undefined`) — the critical conditionality. Verified the 2 PATCH unit suites
+  (patch-identity 4 + enforce-gate 4) only patch NON-delivery fields, so the gate never
+  fires for them → all stay green. Unconditional gate would break them (prior-plan lesson
+  re-confirmed).
+
+### Test (b) flip — distinct input from (e), not a duplicate
+
+- (e) sends delivery_steps:'' . (b) now OMITS delivery_steps (schema `.default(null)` →
+  null). Both null/null → 400 MISSING_DELIVERY_CONFIG. Covers omitted-vs-empty-string.
+  (T8 separately handled the UNIT-test (b)/(d) dup in archetype-generator-delivery.test.ts
+  by deletion; my (b) is the INTEGRATION test in archetypes-delivery-gate.test.ts — flipped
+  to 400 per T9 brief.)
+
+### Verification (all green)
+
+- Integration archetypes-delivery-gate.test.ts: 5/5 (a,b,c,d,e). EXIT:0.
+- Unit converse-create(14)+patch-identity(4)+enforce-gate(4)=22/22. EXIT:0.
+- pnpm build (tsc) EXIT:0. eslint changed files EXIT:0. LSP unavailable (no
+  typescript-language-server pinned) — tsc is authoritative.
+- Pre-existing try/catch repo-write TypeError logs in unit output are NOT failures.
+
+## [2026-06-16] Task 3 — DB verification + seed check (COMPLETE)
+
+### Results
+
+- DB query: `SELECT id, role_name FROM archetypes WHERE deleted_at IS NULL AND deliverable_type IS NOT NULL AND (delivery_steps IS NULL OR delivery_steps = '');` → 0 rows. ✅
+- seed.ts cleaning-schedule: delivery_steps is non-empty (lines 3833-3845, both create and update blocks). ✅
+- seed.ts daily-motivation: delivery_steps is non-empty via `DAILY_MOTIVATION_DELIVERY_STEPS` constant (line 3189, referenced at lines 3215 and 3234). ✅
+
+### Confirmation
+
+All 3 expected outcomes pass. The plan's Wave 1 retrofits (T1, T2) are fully reflected in both the DB and seed.ts. No deliverable employee has empty delivery_steps.
+
+## [2026-06-16] Task 10 — Generation-guardrail LIVE check (COMPLETE)
+
+### Both guardrails verified end-to-end against the running gateway
+
+- TEST (a) POST gate: deliverable_type:null + delivery_steps:"" -> HTTP 400
+  `MISSING_DELIVERY_CONFIG`. Confirms T9's gate (admin-archetypes.ts:199) is live.
+- TEST (b) converse-create: a "pure utility"-sounding employee (monitors RSS feed,
+  posts digest) generated a proposal with deliverable_type:null BUT non-empty
+  delivery_steps (158 chars). Confirms T8's always-default generator is live.
+
+### Live-API gotchas hit (not obvious from the brief)
+
+- POST /archetypes body schema REQUIRES `model` AND `runtime:"opencode"`. Without
+  them you get a 400 on schema validation (path:["model"], path:["runtime"]) and
+  NEVER reach the delivery gate. The brief's example payload omits both -> it 400s
+  for the WRONG reason. Must add model + runtime to actually test the gate.
+  (Add `"model":"minimax/minimax-m2.7","runtime":"opencode"`.)
+- converse-create body field is `transcript` (array of {role:'user'|'assistant',
+  content}), NOT `messages` as the brief's example shows. `messages` -> 400
+  "expected array, received undefined" at path:["transcript"]. Schema is
+  ConverseCreateBodySchema in admin-archetype-converse-create.ts:33, min(1) max(50).
+- converse-create asked TWO clarifying questions before yielding kind:proposal
+  (data-source URL, then which fetch tool). Had to feed the FULL transcript back
+  each turn (request-stateless design) — append prior assistant question + new user
+  answer. 3 user turns total reached the proposal. The 5-turn backstop wasn't needed.
+- Proposal shape: top-level keys = baseline, changed_fields, kind, proposal,
+  tool_delta, trigger_change. The archetype fields live under `.proposal.*`
+  (delivery_steps, deliverable_type, etc.), NOT top-level.
+
+### Cleanup reality
+
+- Neither test persisted anything: test (a) rejected at gate before
+  prisma.archetype.create(); converse-create only proposes, never writes. The
+  safety soft-delete UPDATE matched 0 rows. active gate-test-% count = 0 confirmed.
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-10-guardrail.txt
+
+## [2026-06-16] Task 4 — LIVE E2E both employees reach Done via Delivering (COMPLETE)
+
+### Result: PASS — both go Submitting → Delivering → Done (NOT Submitting → Done)
+
+- cleaning-schedule (VLRE) task `6cc597b7-7c2c-4e69-8630-2e3ed863e2f4` → Done, Delivering present, failure_code empty.
+- daily-motivation (DozalDevs) task `54983396-bdc0-4f17-8395-e4c775db3630` → Done, Delivering present, failure_code empty.
+- The `Delivering → Done` transition is logged with `actor='machine'` (the spawned
+  delivery container) — proves the Slack post happened in the delivery container,
+  not execution. Exactly the retrofit's intended behavior.
+- End-to-end timing: each task ~75s execution + ~30s delivery. Both terminal in <2.5 min.
+
+### CRITICAL trigger gotchas (cost 2 failed attempts on cleaning-schedule)
+
+- cleaning-schedule has `input_schema` requiring `date` (every_run). daily-motivation has none.
+- Trigger inputs MUST be nested under an `inputs` key, NOT top-level body:
+  - WRONG `-d '{"date":"2026-06-16"}'` → `{"error":"MISSING_REQUIRED_INPUTS","missing":["date"]}`
+  - RIGHT `-d '{"inputs":{"date":"2026-06-16"}}'` → task created
+  - Source: admin-employee-trigger.ts:22 `inputs: z.record(...)`, L71 `bodyResult.data?.inputs`.
+- daily-motivation took plain `-d '{}'` (no required inputs).
+
+### Schema gotchas (column names differ from task-brief examples)
+
+- `task_status_log` column is `to_status` / `from_status`, NOT `state` (brief's example
+  said `state` — wrong). Query: `SELECT from_status,to_status,actor,created_at ... ORDER BY created_at`.
+- archetypes has NO `approval_required` column — it's `risk_model->>'approval_required'` (JSONB).
+- archetypes input field is `input_schema` (NOT `required_inputs`).
+- tasks failure column is `failure_code` (confirmed, matches brief).
+
+### Live-poll observation note
+
+- daily-motivation hit Delivering FAST (visible at t+15s first poll); cleaning-schedule
+  lagged ~40s behind (different tenant, started a few seconds later + longer exec). Both
+  Delivering states captured live AND confirmed post-hoc in task_status_log. Always read
+  the FULL trace, not just a single poll snapshot (a fast Delivering→Done can be missed
+  between 15s polls — the log is authoritative).
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-4-e2e.txt
+
+## [2026-06-16] Task 5 — approval-flip regression (COMPLETE)
+
+### Result: PASS — MISSING_DELIVERY_CONFIG abolished on the approval path
+
+- daily-motivation (DozalDevs, archetype a360b2e6-7dcc-410d-a17b-8d51e21c74ed),
+  flipped approval_required:true, approved via Inngest event → full path:
+  `Received→Triaging→AwaitingInput→Ready→Executing→Validating→Submitting→Reviewing→Approved→Delivering→Done`.
+  failure_code EMPTY. `Delivering→Done` actor='machine' (delivery container).
+  Test task: `baa35626-7c0d-4dc1-86f7-9bfaabced932`.
+
+### THE BIG GOTCHA: a naive approval flip on daily-motivation CANNOT reach Reviewing
+
+- daily-motivation's execution_steps HARDCODE `--classification NO_ACTION_NEEDED`
+  (its T2 approval-free retrofit). With approval_required:true, validate-and-submit.ts
+  calls `runOverrideCardPath()` FIRST (override-card.ts). That path fires on
+  NO_ACTION_NEEDED → posts an OVERRIDE card (not an approval card) and
+  `step.waitForEvent('employee/override.requested')`. It NEVER calls
+  `runReviewingPath()`. So the task PARKS IN `Submitting` indefinitely (looks stuck;
+  deliverable.metadata has `override_card_ts`, NOT a pending_approvals row).
+- Crucially it ALSO never reaches `resolveDelivery('NEEDS_APPROVAL')` at
+  approval-handler.ts:304-317 — the exact site of the MISSING_DELIVERY_CONFIG bug.
+  So a naive flip does NOT actually test the regression; it tests the override path.
+- FIX to genuinely exercise the regression + hit the brief's exact trace: a
+  TEMPORARY DB-ONLY execution_steps patch flipping `NO_ACTION_NEEDED→NEEDS_APPROVAL`
+  (NO source files touched), then restore byte-exact afterward. Mirrors the
+  documented e2e-testing model-override convention (override in DB, restore after).
+- First (naive) task `9c4de029-...` parked in Submitting on override-card wait; cleaned
+  up by sending `employee/override.requested {direction:null}` → went Done (dismissed).
+
+### resolveDelivery confirms the regression IS fixed by delivery_steps presence
+
+- delivery-resolver.ts rule 1: non-empty `delivery_steps` → `has-delivery` regardless
+  of classification. daily-motivation's delivery_steps is non-empty (T2 retrofit, ~877
+  chars) → approval-handler.ts:304 `resolveDelivery(...,'NEEDS_APPROVAL')` returns
+  `has-delivery`, NOT `misconfigured` → NO MISSING_DELIVERY_CONFIG. That's the whole fix.
+
+### Mechanics that worked / gotchas
+
+- approval_required & timeout_hours live in `risk_model` JSONB. ORIGINAL daily-motivation
+  value was `{"timeout_hours": 2, ...}` (NOT 1 — the brief's example used 1). Restored to
+  the TRUE original (timeout_hours:2). ALWAYS back up the real value first, don't trust
+  the brief's example numbers.
+- PATCH risk_model via admin API works cleanly and returns the new risk_model in the body.
+- execution_steps DB patch: build SQL with Postgres dollar-quoting `$exec$...$exec$`
+  (a Node script via execFileSync('psql',[...,'-f',sqlfile]) — handles ALL embedded
+  quotes/newlines, no shell escaping). Put fail-fast assertions (has NEEDS_APPROVAL,
+  no NO_ACTION_NEEDED, has --draft-file, no post-message) BEFORE writing.
+- BYTE-EXACT restore gotcha: `psql -At -c 'SELECT col'` APPENDS one record-separator
+  `\n` to its stdout. If you back up to a file that way and restore the file verbatim,
+  you inject an extra trailing newline (DB octet_length 1221 vs true 1220). Strip exactly
+  one trailing `\n` before restoring, and verify via `octet_length(col)` (which has NO
+  psql-newline artifact) — NOT via `wc -c` on a psql dump file.
+- approve via `curl -X POST localhost:8288/e/local` with `employee/approval.received`
+  {action:approve, userId, userName}. Returns {"ids":[...],"status":200}.
+- Pre-existing noise in /tmp/ai-dev.log: 47 reviewing-watchdog "zombies" (old test tasks
+  with pending_approvals — watchdog SKIPS them, resolves 0), and time-estimator
+  "LLM returned empty content" warns — both UNRELATED to this task.
+
+### Evidence
+
+- .sisyphus/evidence/mandatory-delivery-phase-all-employees/task-5-approval-flip.txt
+
+## F3 Final QA Re-run (2026-06-16)
+- POST /archetypes Zod schema requires `instructions` (string) — NOT `identity`/`execution_steps`. Sending the wrong fields yields a Zod 400 BEFORE the delivery gate. Use the integration-test payload shape: `{role_name, model, runtime, instructions, deliverable_type, delivery_steps}`.
+- daily-motivation execution_steps contain NO_ACTION_NEEDED **TWICE** (line 10 + the line-13 MANDATORY FINAL command). Use `.replaceAll()` NOT `.replace()` for the approval-flip — single replace leaves the mandatory-final command unflipped and the plan's own `includes('NO_ACTION_NEEDED')` guard would throw.
+- Approval via Inngest dev endpoint works headless: POST http://localhost:8288/e/local with `employee/approval.received` {taskId, action:approve, userId, userName}. Returns {ids, status:200}.
+- All Done transitions for delivery-phase employees show `actor=machine` on Delivering->Done — this is the proof the delivery CONTAINER ran (not in-execution posting). actor=lifecycle_fn would be a red flag.
+- Both E2E tasks ran ~1m45s execution + ~30s delivery. Approval-flip total ~2m20s incl. manual approve.
+- byte-exact restore confirmed via octet_length(execution_steps)=1220 (psql -At adds 1 trailing \n so file is 1221 bytes; strip with .replace(/\n$/,'')).

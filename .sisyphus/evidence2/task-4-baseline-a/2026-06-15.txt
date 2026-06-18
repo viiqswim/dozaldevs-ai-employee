@@ -1,0 +1,39 @@
+TASK 4 — BASELINE-A EVIDENCE
+Date: 2026-06-15 (Monday)
+Archetype: 77e77c86-3bce-49a0-84e3-ccf7dac37b33 (cleaning-schedule-v16, hardcoded)
+Trigger: {"inputs":{"target_date":"2026-06-15"}}
+
+TRIGGER RESPONSE:
+{"task_id":"5e8842ea-0e56-441a-adb7-64f38f5356c2","status_url":"/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/5e8842ea-0e56-441a-adb7-64f38f5356c2"}
+
+TASK ID: 5e8842ea-0e56-441a-adb7-64f38f5356c2
+
+STATUS TRACE (task_status_log):
+  Received      -> Triaging       2026-06-17 16:57:55.229
+  Triaging      -> AwaitingInput  2026-06-17 16:57:55.531
+  AwaitingInput -> Ready          2026-06-17 16:57:55.539
+  Ready         -> Executing      2026-06-17 16:57:55.548
+  Submitting    -> Validating     2026-06-17 16:59:25.943
+  Validating    -> Submitting     2026-06-17 16:59:25.954
+  Submitting    -> Delivering     2026-06-17 16:59:26.029
+  Delivering    -> Done           2026-06-17 16:59:57.846
+
+FINAL STATUS: Done
+DURATION: ~2m02s (Received 16:57:55 -> Done 16:59:57)
+CLASSIFICATION: NEEDS_APPROVAL
+DELIVERABLE: deliverables.external_ref=5e8842ea... delivery_type=slack_message (921 chars)
+SLACK: channel C0B71QSMZKQ, notify_ts 1781715475.535309
+
+COMPARISON VERDICT vs Task-3 oracle:
+  CLEANING ASSIGNMENTS: PERFECT MATCH
+    - Diana 271-Gina-R2 25min        [oracle: 25] OK
+    - Yessica 7213-Nutria-R1 25min   [oracle: 25] OK
+    - SIN ASIGNAR 3505-Banton-R1/2/3 75min (78722 gap) [oracle: UNKNOWN 75] OK
+    - Grand total 125 min            [oracle: 125] OK
+  TRASH DUTIES: PARTIAL DIVERGENCE
+    - Baseline emitted only 2 reminders (219 Paul, 407 Gevers — martes/78203)
+    - Oracle expected ~8 (Monday-pickup confirms for 7213/271-Gina + Tue reminders
+      for 3401 Breckenridge, 3412 Sand Dunes, 3420 Hovenweep, 6002 Palm, 6930 Heron,
+      8039 Chestnut). Hardcoded employee under-reports trash.
+
+OVERALL: Cleaning = exact match. Trash = incomplete (known hardcoded limitation).

@@ -1,0 +1,16 @@
+[
+  {
+    "propertyUid": "2295ff78-deee-40c6-a1f7-e2025d8ce110",
+    "listingName": "6002-PAL-HOME",
+    "normalizedAddress": "6002 Palm Circle",
+    "roomId": "Casa",
+    "zipCode": "78741",
+    "city": "Austin, TX",
+    "checkIn": "2026-06-21T16:00:00",
+    "checkOut": "2026-06-22T11:00:00",
+    "checkOutTime": "11:00",
+    "guestName": "Laurie Rotondo",
+    "status": "BOOKED",
+    "channel": "VRBO"
+  }
+]

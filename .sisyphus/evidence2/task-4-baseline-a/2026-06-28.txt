@@ -1,0 +1,43 @@
+TASK 4 — BASELINE-A EVIDENCE
+Date: 2026-06-28 (Sunday)
+Archetype: 77e77c86-3bce-49a0-84e3-ccf7dac37b33 (cleaning-schedule-v16, hardcoded)
+Trigger: {"inputs":{"target_date":"2026-06-28"}}
+
+TRIGGER RESPONSE:
+{"task_id":"0cab3972-b037-4f2a-8c82-3ac7dd809148","status_url":"/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/0cab3972-b037-4f2a-8c82-3ac7dd809148"}
+
+TASK ID: 0cab3972-b037-4f2a-8c82-3ac7dd809148
+
+STATUS TRACE (task_status_log):
+  Received      -> Triaging       2026-06-17 17:05:33.995
+  Triaging      -> AwaitingInput  2026-06-17 17:05:34.274
+  AwaitingInput -> Ready          2026-06-17 17:05:34.282
+  Ready         -> Executing      2026-06-17 17:05:34.289
+  Submitting    -> Validating     2026-06-17 17:07:34.77
+  Validating    -> Submitting     2026-06-17 17:07:34.782
+  Submitting    -> Delivering     2026-06-17 17:07:34.847
+  Delivering    -> Done           2026-06-17 17:08:06.691
+
+FINAL STATUS: Done
+DURATION: ~2m33s (Received 17:05:33 -> Done 17:08:06)
+CLASSIFICATION: NEEDS_APPROVAL
+DELIVERABLE: deliverables.external_ref=0cab3972... delivery_type=slack_message
+
+COMPARISON VERDICT vs Task-3 oracle:
+  CLEANING ASSIGNMENTS: MATERIAL DIVERGENCE
+    - 3505 Banton R3 SIN ASIGNAR 25min (78722 gap) [oracle: UNKNOWN 25] OK
+    - 4403 Hayride-A: baseline SIN ASIGNAR "domingo, Yessica no trabaja"
+      [oracle: BERENICE/SUSANA weekend backup, 90min] WRONG
+    - 4405 Hayride-A: baseline SIN ASIGNAR "domingo, Yessica no trabaja"
+      [oracle: BERENICE/SUSANA weekend backup, 90min] WRONG
+    - Grand total: oracle 205min (25 + 180 assigned). Baseline leaves 180 unassigned.
+    *** CRITICAL: hardcoded baseline lacks weekend-backup-cleaner knowledge.
+        It drops 180 min of work the oracle assigns to Berenice/Susana. ***
+  TRASH DUTIES: DIVERGENT
+    - Hallucinated "3401 Hovenweep Ave" / "3412 Hovenweep Ave" (should be
+      3401 Breckenridge Dr / 3412 Sand Dunes Ave).
+    - Assigns Sunday trash reminders to Yessica (who it itself says doesn't
+      work Sundays — internally inconsistent).
+
+OVERALL: 1 of 3 cleaning lines correct. The Sunday weekend-backup gap is the
+clearest reliability failure across all 5 dates. Trash unreliable (hallucinations).

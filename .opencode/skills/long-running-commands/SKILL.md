@@ -15,6 +15,23 @@ description: 'Use when running any command expected to take >30 seconds (docker 
 - `fly logs`
 - `cloudflared tunnel`
 
+## Running Tests Safely (vitest fork-orphan hazard)
+
+`vitest.config.ts` uses `pool: 'forks'`, so every test worker is a **forked child process**. If a test run is terminated abnormally — SIGKILL, a closed tmux pane, a killed `| tee` pipeline, or a parent shell that dies — the parent vitest process dies but its forked workers **re-parent to init (ppid=1) and run forever**, each pinning a CPU core. A few abandoned runs exhaust memory and bring the whole machine down. This has happened in practice (load avg 36, machine unusable).
+
+**Mandatory rules for running tests:**
+
+1. **NEVER run bare `pnpm test`** for a one-shot run — it stays in **watch mode** and never exits. Use `pnpm test:unit` (one-shot) instead. `pnpm test` is for interactive watch only.
+2. **ALWAYS go through the package.json `test*` scripts.** They are backed by `scripts/run-vitest.mjs`, a signal-safe wrapper that runs vitest in its own process group and reaps the ENTIRE group on any exit path (clean exit, signal, or parent death). Do NOT invoke `vitest` / `pnpm exec vitest` directly — that bypasses the orphan protection.
+3. **When killing a test run, kill the process group, not just the parent.** `kill <pid>` leaves forked workers orphaned. Use `kill -- -<pgid>` (negative pid), or close the whole tmux session, or just let the wrapper handle it.
+4. **Post-run orphan check** — after any abnormal test interruption, verify no orphans survived:
+   ```bash
+   ps -Ao pid,ppid,command | grep -iE 'node \(vitest' | grep -v grep | awk '$2==1'
+   # Any output = orphans. Reap them:
+   ps -Ao pid,ppid,command | grep -iE 'node \(vitest' | grep -v grep | awk '$2==1 {print $1}' | xargs -r kill -9
+   ```
+   (`ppid=1` is the unambiguous orphan signature — a worker whose parent died.)
+
 ## tmux Launch + Poll Pattern
 
 ```bash

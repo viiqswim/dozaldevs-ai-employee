@@ -18,6 +18,7 @@ import {
   CONVERSE_SYSTEM_PROMPT_POST,
   buildConnectedAppsBlock,
   CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE,
+  PLUMBING_JUDGE_SYSTEM_PROMPT,
 } from './prompts/archetype-generator-prompts.js';
 import type {
   ArchetypeGenerationCallRepository,
@@ -334,6 +335,27 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
+// Keywords that indicate execution_steps reference a Composio-connected app.
+// When any keyword matches, /tools/composio/execute.ts is auto-attached to tool_registry.
+const COMPOSIO_APP_KEYWORDS = [
+  'notion',
+  'google sheet',
+  'google doc',
+  'google drive',
+  'google calendar',
+  'gmail',
+  'linear',
+  'jira',
+  'airtable',
+  'asana',
+  'trello',
+  'hubspot',
+  'salesforce',
+  'confluence',
+  'monday',
+  'clickup',
+];
+
 // Failure signals a normalization regression, not bad user input — warn, don't throw.
 const PostProcessedArchetypeSchema = z.object({
   role_name: z.string(),
@@ -359,10 +381,14 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
     result.identity = '';
   }
 
-  const rawDeliverySteps = result.delivery_steps;
-  if (rawDeliverySteps !== null && typeof rawDeliverySteps !== 'string') {
+  if (result.delivery_steps !== null && typeof result.delivery_steps !== 'string') {
     result.delivery_steps = null;
-  } else if (rawDeliverySteps === null && result.deliverable_type) {
+  }
+  // Always derive a default — even when deliverable_type is null. Closing this null/null
+  // case is the point: it removes the escape hatch so every employee gets a delivery phase
+  // and can be switched to require approval later. Do NOT revert to null-passthrough.
+  const normalizedDeliverySteps = result.delivery_steps as string | null;
+  if (normalizedDeliverySteps === null || normalizedDeliverySteps.trim().length === 0) {
     result.delivery_steps = DEFAULT_DELIVERY_INSTRUCTIONS;
   }
 
@@ -391,6 +417,22 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
         }
         return normalized;
       });
+  }
+
+  if (typeof result.execution_steps === 'string') {
+    const stepsLower = result.execution_steps.toLowerCase();
+    const hasComposioKeyword = COMPOSIO_APP_KEYWORDS.some((kw) => stepsLower.includes(kw));
+    if (hasComposioKeyword) {
+      const composioTool = '/tools/composio/execute.ts';
+      const registry = result.tool_registry as { tools: string[] } | null | undefined;
+      if (registry && Array.isArray(registry.tools)) {
+        if (!registry.tools.includes(composioTool)) {
+          registry.tools.push(composioTool);
+        }
+      } else {
+        result.tool_registry = { tools: ['/tools/platform/submit-output.ts', composioTool] };
+      }
+    }
   }
 
   const rawTrigger = result.trigger_sources as Record<string, unknown> | null | undefined;
@@ -489,6 +531,113 @@ export class ArchetypeGenerator {
     } catch (err) {
       log.warn({ err }, 'Failed to persist archetype generation call');
     }
+  }
+
+  async judgeProseForPlumbing(
+    fields: Record<string, unknown>,
+  ): Promise<{ has_leak: boolean; fields: string[]; snippets: string[] }> {
+    const SAFE = { has_leak: false, fields: [] as string[], snippets: [] as string[] };
+
+    const serializeOverview = (overview: unknown): Record<string, unknown> => {
+      if (!overview || typeof overview !== 'object') return {};
+      const ov = overview as Record<string, unknown>;
+      const result: Record<string, unknown> = {};
+      for (const key of ['role', 'trigger', 'tools_used', 'output', 'approval']) {
+        if (typeof ov[key] === 'string') result[key] = ov[key];
+      }
+      if (Array.isArray(ov['workflow'])) {
+        result['workflow'] = ov['workflow'];
+      }
+      return result;
+    };
+
+    const payload: Record<string, unknown> = {};
+    for (const key of ['identity', 'execution_steps', 'delivery_steps']) {
+      if (typeof fields[key] === 'string') payload[key] = fields[key];
+    }
+    if (fields['overview']) {
+      payload['overview'] = serializeOverview(fields['overview']);
+    }
+
+    try {
+      const result = await this.callLLMFn({
+        taskType: 'review',
+        temperature: 0,
+        responseFormat: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: PLUMBING_JUDGE_SYSTEM_PROMPT },
+          { role: 'user', content: JSON.stringify(payload) },
+        ],
+      });
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(result.content);
+      } catch (parseErr) {
+        log.warn({ err: parseErr }, 'judgeProseForPlumbing: failed to parse LLM response JSON');
+        return SAFE;
+      }
+
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        typeof (parsed as Record<string, unknown>)['has_leak'] !== 'boolean' ||
+        !Array.isArray((parsed as Record<string, unknown>)['fields']) ||
+        !Array.isArray((parsed as Record<string, unknown>)['snippets'])
+      ) {
+        log.warn({ parsed }, 'judgeProseForPlumbing: unexpected response shape from LLM');
+        return SAFE;
+      }
+
+      const verdict = parsed as { has_leak: boolean; fields: string[]; snippets: string[] };
+      return {
+        has_leak: verdict.has_leak,
+        fields: verdict.fields,
+        snippets: verdict.snippets,
+      };
+    } catch (err) {
+      log.warn({ err }, 'judgeProseForPlumbing: LLM call failed — failing open');
+      return SAFE;
+    }
+  }
+
+  private async validateAndRetryProse<T extends GenerateArchetypeResponse>(
+    result: T,
+    regenerate: (feedback: string) => Promise<T>,
+  ): Promise<T> {
+    const verdict = await this.judgeProseForPlumbing(result as unknown as Record<string, unknown>);
+    if (!verdict.has_leak) return result;
+
+    const buildFeedback = (v: { fields: string[]; snippets: string[] }): string =>
+      `Your previous response contained platform plumbing in the following fields: ${v.fields.join(', ')}. ` +
+      `Offending snippets: ${v.snippets.map((s) => `"${s}"`).join(', ')}. ` +
+      `Please regenerate those fields using plain-English intent only — no tool paths (e.g. /tools/...), no tsx invocations, no --flag syntax, no /tmp/ paths, no raw Slack channel IDs. ` +
+      `Refer to "the team's notification channel" instead of a literal channel ID. ` +
+      `Describe what the employee does, not how the platform executes it.`;
+
+    log.warn(
+      { fields: verdict.fields, snippets: verdict.snippets },
+      'archetype generation: plumbing leak detected — retrying (attempt 1 of 2)',
+    );
+
+    const retry1 = await regenerate(buildFeedback(verdict));
+    const verdict1 = await this.judgeProseForPlumbing(retry1 as unknown as Record<string, unknown>);
+    if (!verdict1.has_leak) return retry1;
+
+    log.warn(
+      { fields: verdict1.fields, snippets: verdict1.snippets },
+      'archetype generation: plumbing leak persisted after retry 1 — retrying (attempt 2 of 2)',
+    );
+
+    const retry2 = await regenerate(buildFeedback(verdict1));
+    const verdict2 = await this.judgeProseForPlumbing(retry2 as unknown as Record<string, unknown>);
+    if (!verdict2.has_leak) return retry2;
+
+    log.warn(
+      { fields: verdict2.fields, snippets: verdict2.snippets },
+      'archetype generation: plumbing leak persisted after retries — accepting last attempt',
+    );
+    return retry2;
   }
 
   private async callLLMWithJsonRetry(
@@ -718,7 +867,12 @@ export class ArchetypeGenerator {
       throw new Error(`GENERATION_FAILED: LLM returned invalid JSON — ${errMsg}`);
     }
 
-    const result = postProcess(parsed, description);
+    let result = postProcess(parsed, description);
+    result = await this.validateAndRetryProse(result, async (feedback) => {
+      messages.push({ role: 'user', content: feedback });
+      const retryStripped = await this.callLLMWithJsonRetry(messages, llmOptions, callContext);
+      return postProcess(JSON.parse(retryStripped), description);
+    });
     await this.applyModelAndEstimate(result, catalog, generationContext);
     return result;
   }
@@ -753,7 +907,9 @@ export class ArchetypeGenerator {
       ? { callType: 'refine' as const, ...generationContext }
       : undefined;
 
-    const runRefineCall = async (msgs: Message[]): Promise<GenerateArchetypeResponse> => {
+    // runRefineCallRaw: LLM call + postProcess only — no applyModelAndEstimate.
+    // applyModelAndEstimate runs once on the final result after plumbing retry.
+    const runRefineCallRaw = async (msgs: Message[]): Promise<GenerateArchetypeResponse> => {
       let parsed: unknown;
       try {
         const stripped = await this.callLLMWithJsonRetry(msgs, llmOptions, refineCallContext);
@@ -786,9 +942,7 @@ export class ArchetypeGenerator {
           `GENERATION_FAILED: LLM returned invalid JSON during refinement — ${errMsg}`,
         );
       }
-      const r = postProcess(parsed, previousConfig.role_name);
-      await this.applyModelAndEstimate(r, catalog, generationContext);
-      return r;
+      return postProcess(parsed, previousConfig.role_name);
     };
 
     const baseMessages: Message[] = [
@@ -799,7 +953,7 @@ export class ArchetypeGenerator {
       },
     ];
 
-    const result = await runRefineCall(baseMessages);
+    let result = await runRefineCallRaw(baseMessages);
 
     // Guard: if the LLM returned prose fields identical to the input, it failed to
     // apply the change. Retry once with an explicit nudge so the model understands it
@@ -825,9 +979,17 @@ export class ArchetypeGenerator {
             'You MUST modify the relevant fields to incorporate the requested change. Please try again and make the specific changes the user asked for.',
         },
       ];
-      return runRefineCall(nudgeMessages);
+      result = await runRefineCallRaw(nudgeMessages);
     }
 
+    // Plumbing-leak check: run after the unchanged-prose guard so we judge the final
+    // prose result. applyModelAndEstimate runs once on whatever comes out of this.
+    result = await this.validateAndRetryProse(result, async (feedback) => {
+      baseMessages.push({ role: 'user', content: feedback });
+      return runRefineCallRaw(baseMessages);
+    });
+
+    await this.applyModelAndEstimate(result, catalog, generationContext);
     return result;
   }
 
@@ -919,7 +1081,30 @@ export class ArchetypeGenerator {
             .filter((m) => m.role === 'user')
             .map((m) => m.content)
             .join(' ');
-      const processedConfig = postProcess(parsed.config, roleNameSource);
+      let processedConfig = postProcess(parsed.config, roleNameSource);
+      processedConfig = await this.validateAndRetryProse(processedConfig, async (feedback) => {
+        messages.push({ role: 'user', content: feedback });
+        let retryRawJson: string;
+        try {
+          retryRawJson = await this.callLLMWithJsonRetry(messages, llmOptions);
+        } catch {
+          return processedConfig;
+        }
+        let retryParsed: { kind?: string; config?: unknown };
+        try {
+          retryParsed = JSON.parse(retryRawJson) as { kind?: string; config?: unknown };
+        } catch {
+          return processedConfig;
+        }
+        if (
+          retryParsed.kind === 'proposal' &&
+          retryParsed.config !== null &&
+          typeof retryParsed.config === 'object'
+        ) {
+          return postProcess(retryParsed.config, roleNameSource);
+        }
+        return processedConfig;
+      });
       await this.applyModelAndEstimate(processedConfig, catalog);
 
       const proseFields = ['identity', 'execution_steps', 'delivery_steps', 'overview'] as const;

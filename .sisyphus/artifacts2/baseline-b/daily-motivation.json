@@ -1,0 +1,33 @@
+{
+  "slug": "daily-motivation",
+  "generated_role_name": "daily-motivation-poster",
+  "identity": "You are a cheerful and inspirational team morale booster who creates short, uplifting Slack messages for a software development team each morning.",
+  "execution_steps": "1. Generate a fresh motivational message by prompting the AI to create an uplifting, short message for a software development team. Focus on themes like teamwork, innovation, and positivity.\n2. Write the generated message to /tmp/delivery-draft.txt so it is ready for delivery.\n3. Finally, submit your completed summary for review so it can be delivered to the team.",
+  "delivery_steps": "1. Parse the approved content from the <approved-content> XML block and read the draft message from /tmp/delivery-draft.txt.\n2. Post the message to the $NOTIFICATION_CHANNEL Slack channel using the Slack composio tool.\n3. Confirm delivery by submitting the output summary to the platform.",
+  "tool_registry": {
+    "tools": [
+      "/tools/platform/submit-output.ts"
+    ]
+  },
+  "model": "minimax/minimax-m2.7",
+  "input_schema": null,
+  "deliverable_type": null,
+  "trigger_sources": {
+    "type": "manual"
+  },
+  "risk_model": {
+    "approval_required": false,
+    "timeout_hours": 1
+  },
+  "overview": {
+    "role": "Daily Motivation Poster",
+    "trigger": "Scheduled daily at 8:00 AM",
+    "workflow": [
+      "Generate motivational message using AI",
+      "Post message to team Slack channel"
+    ],
+    "tools_used": "AI model, Slack composio tool",
+    "output": "Short motivational Slack message",
+    "approval": "None - posted automatically"
+  }
+}

@@ -3123,7 +3123,7 @@ No specific house rules provided.
       identity:
         'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3147,7 +3147,7 @@ No specific house rules provided.
       identity:
         'You are a daily Slack channel summarizer for DozalDevs, a software development team.',
       execution_steps: DOZALDEVS_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3170,6 +3170,86 @@ No specific house rules provided.
     `✅ Archetype upserted: ${dozalDevsSummarizerArchetype.id} (role: ${dozalDevsSummarizerArchetype.role_name}, model: ${dozalDevsSummarizerArchetype.model})`,
   );
 
+  const DAILY_MOTIVATION_EXECUTION_STEPS = `You are MotivateBot, the Team Morale Specialist at DozalDevs. Your job is to compose an uplifting daily motivational message for the development team.
+
+STEP 1 — Compose the message:
+   Write a unique, uplifting motivational quote or short message to boost the DozalDevs team's morale for the day. Keep it warm, encouraging, professional, and concise.
+
+STEP 2 — Save the message to a draft file:
+   Write the COMPLETE message to the draft file at /tmp/daily-motivation-draft.txt using your file-writing tool. Do NOT publish it to Slack in this phase — the delivery phase publishes the message.
+
+STEP 3 — Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/daily-motivation-draft.txt --summary "Daily motivation message prepared" --classification NO_ACTION_NEEDED
+
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/daily-motivation-draft.txt --summary "Daily motivation message prepared" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the message.`;
+
+  const DAILY_MOTIVATION_DELIVERY_STEPS = `You are delivering the approved daily motivational message by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete motivational message prepared during execution.
+
+STEPS:
+1. Read the message text from the \`<approved-content>\` block in the prompt.
+2. Post it to the team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<message text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Posted daily motivation message to Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the message EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`;
+
+  const DAILY_MOTIVATION_IDENTITY =
+    "You are MotivateBot, the Team Morale Specialist at DozalDevs. You specialize in crafting and delivering uplifting daily messages to inspire the development team. Your communication style is warm, encouraging, and professional, and you take pride in starting everyone's day with a positive note.";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dozalDevsDailyMotivationArchetype = await (prisma.archetype as any).upsert({
+    where: { id: 'a360b2e6-7dcc-410d-a17b-8d51e21c74ed' },
+    create: {
+      id: 'a360b2e6-7dcc-410d-a17b-8d51e21c74ed',
+      role_name: 'daily-motivation',
+      runtime: 'opencode',
+      identity: DAILY_MOTIVATION_IDENTITY,
+      execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
+      delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
+      model: 'deepseek/deepseek-v4-flash',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
+      },
+      trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'America/New_York' },
+      risk_model: { approval_required: false, timeout_hours: 2 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+      tenant_id: '00000000-0000-0000-0000-000000000002',
+    },
+    update: {
+      role_name: 'daily-motivation',
+      runtime: 'opencode',
+      identity: DAILY_MOTIVATION_IDENTITY,
+      execution_steps: DAILY_MOTIVATION_EXECUTION_STEPS,
+      delivery_steps: DAILY_MOTIVATION_DELIVERY_STEPS,
+      model: 'deepseek/deepseek-v4-flash',
+      deliverable_type: 'slack_message',
+      tool_registry: {
+        tools: ['/tools/slack/post-message.ts', '/tools/platform/submit-output.ts'],
+      },
+      trigger_sources: { type: 'scheduled', cron: '0 8 * * 1-5', timezone: 'America/New_York' },
+      risk_model: { approval_required: false, timeout_hours: 2 },
+      notification_channel: null,
+      concurrency_limit: 1,
+      status: 'active',
+      temperature: 1.0,
+    },
+  });
+
+  console.log(
+    `✅ Archetype upserted: ${dozalDevsDailyMotivationArchetype.id} (role: ${dozalDevsDailyMotivationArchetype.role_name}, model: ${dozalDevsDailyMotivationArchetype.model})`,
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const vlreSummarizerArchetype = await (prisma.archetype as any).upsert({
     where: { id: '00000000-0000-0000-0000-000000000013' },
@@ -3180,7 +3260,7 @@ No specific house rules provided.
       identity:
         'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3204,7 +3284,7 @@ No specific house rules provided.
       identity:
         'You are Papi Chulo — a daily Slack channel summarizer for VLRE, a short-term rental property management company.',
       execution_steps: VLRE_SUMMARIZER_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -3237,7 +3317,7 @@ No specific house rules provided.
       identity:
         "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
       execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
@@ -3282,7 +3362,7 @@ CRITICAL: --lead-id is REQUIRED. --thread-id is optional but use it when availab
       identity:
         "You are a guest communication specialist for VLRE vacation rentals. Be casual and warm, like a friend who manages the property. Always match the guest's language (English or Spanish).",
       execution_steps: VLRE_GUEST_MESSAGING_INSTRUCTIONS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'hostfully_message',
       tool_registry: {
         tools: [
@@ -3358,7 +3438,7 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "Rotated codes for X properties (Y succeeded, Z failed)" \\
   --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
         tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
@@ -3401,7 +3481,7 @@ FINAL STEP (MANDATORY):
 tsx /tools/platform/submit-output.ts \\
   --summary "Rotated codes for X properties (Y succeeded, Z failed)" \\
   --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'lock_code_rotation',
       tool_registry: {
         tools: ['/tools/sifely/rotate-property-code.ts', '/tools/slack/post-message.ts'],
@@ -3440,7 +3520,7 @@ Personalize the quote with context about the team's work and the specific ticket
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
@@ -3467,7 +3547,7 @@ Personalize the quote with context about the team's work and the specific ticket
 Compose an encouraging message that ties the quote to the new ticket and motivates the team.
 
 tsx /tools/platform/submit-output.ts --summary "Posted motivational message for ticket [key]" --classification "NO_ACTION_NEEDED"`,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: { tools: ['/tools/slack/post-message.ts'] },
       trigger_sources: { type: 'webhook' },
@@ -3519,8 +3599,8 @@ STEP 2 — Get all confirmed checkouts for targetDate:
      - status: lead status (already confirmed — BOOKED, STAY, etc.)
 
    If the array is empty:
-     Run: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "No hay checkouts para <targetDate>. No se requiere limpieza."
-     Run: tsx /tools/platform/submit-output.ts --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
+     Save the message "No hay checkouts para <targetDate>. No se requiere limpieza." to /tmp/cleaning-schedule-draft.txt using your file-writing tool. Do NOT post it to Slack — the delivery phase posts it.
+     Run: tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
      Stop.
 
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
@@ -3707,19 +3787,20 @@ RULES:
 - Properties ordered by geographic proximity per cleaner
 - Spanish day names: LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday
 
-STEP 6 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+STEP 6 — Save the schedule to a draft file and submit for delivery:
 
-⚠️ ATOMIC AND IRREVERSIBLE:
-A. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-B. IMMEDIATELY: tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
+Do NOT post anything to Slack in this phase. The delivery phase publishes the schedule.
 
-Do NOT call post-message.ts a second time under ANY circumstances.
-A second post-message.ts call = task failure.
+A. Write the COMPLETE schedule text (everything you built in STEP 5 — the 🧹 Limpieza
+   section, the 🗑️ Basura section, and the 📊 Resumen) to the draft file at
+   /tmp/cleaning-schedule-draft.txt using your file-writing tool.
+B. Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
 
-⚡ MANDATORY FINAL BASH COMMANDS — EXECUTE BOTH, IN ORDER:
-1. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<your-schedule-text>"
-2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
-BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the schedule.
 `,
       model: 'deepseek/deepseek-v4-flash',
       vm_size: 'performance-1x',
@@ -3749,7 +3830,19 @@ BOTH must be executed as bash tool calls. A text response without running these 
           description: 'Target checkout date (e.g. 2026-05-30)',
         },
       ],
-      delivery_steps: null,
+      delivery_steps: `You are delivering the approved daily cleaning schedule by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete cleaning schedule text prepared during execution (the 🧹 Limpieza section, the 🗑️ Basura section, and the 📊 Resumen).
+
+STEPS:
+1. Read the schedule text from the \`<approved-content>\` block in the prompt.
+2. Post it to the cleaning team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<schedule text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado en Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`,
       enrichment_adapter: null,
       tenant_id: '00000000-0000-0000-0000-000000000003', // VLRE
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
@@ -3784,8 +3877,8 @@ STEP 2 — Get all confirmed checkouts for targetDate:
      - status: lead status (already confirmed — BOOKED, STAY, etc.)
 
    If the array is empty:
-     Run: tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "No hay checkouts para <targetDate>. No se requiere limpieza."
-     Run: tsx /tools/platform/submit-output.ts --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
+     Save the message "No hay checkouts para <targetDate>. No se requiere limpieza." to /tmp/cleaning-schedule-draft.txt using your file-writing tool. Do NOT post it to Slack — the delivery phase posts it.
+     Run: tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "No checkouts on <targetDate>" --classification NO_ACTION_NEEDED
      Stop.
 
    State aloud: "Found [N] checkouts on [targetDate]: [list listingNames]"
@@ -3972,19 +4065,20 @@ RULES:
 - Properties ordered by geographic proximity per cleaner
 - Spanish day names: LUNES=Monday, MARTES=Tuesday, MIÉRCOLES=Wednesday, JUEVES=Thursday, VIERNES=Friday, SÁBADO=Saturday, DOMINGO=Sunday
 
-STEP 6 — Post to Slack and submit (ONE SHOT — NO REVISIONS):
+STEP 6 — Save the schedule to a draft file and submit for delivery:
 
-⚠️ ATOMIC AND IRREVERSIBLE:
-A. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<schedule>"
-B. IMMEDIATELY: tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
+Do NOT post anything to Slack in this phase. The delivery phase publishes the schedule.
 
-Do NOT call post-message.ts a second time under ANY circumstances.
-A second post-message.ts call = task failure.
+A. Write the COMPLETE schedule text (everything you built in STEP 5 — the 🧹 Limpieza
+   section, the 🗑️ Basura section, and the 📊 Resumen) to the draft file at
+   /tmp/cleaning-schedule-draft.txt using your file-writing tool.
+B. Hand the draft off for delivery by running EXACTLY:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
 
-⚡ MANDATORY FINAL BASH COMMANDS — EXECUTE BOTH, IN ORDER:
-1. tsx /tools/slack/post-message.ts --channel C0B71QSMZKQ --text "<your-schedule-text>"
-2. tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado" --classification NO_ACTION_NEEDED
-BOTH must be executed as bash tool calls. A text response without running these = TASK FAILURE.
+⚡ MANDATORY FINAL BASH COMMAND — EXECUTE IT:
+   tsx /tools/platform/submit-output.ts --draft-file /tmp/cleaning-schedule-draft.txt --summary "Horario de limpieza preparado" --classification NO_ACTION_NEEDED
+This must be executed as a bash tool call. A text response without running it = TASK FAILURE.
+Do NOT publish to Slack in this phase — the delivery phase publishes the schedule.
 `,
       model: 'deepseek/deepseek-v4-flash',
       vm_size: 'performance-1x',
@@ -4014,7 +4108,19 @@ BOTH must be executed as bash tool calls. A text response without running these 
           description: 'Target checkout date (e.g. 2026-05-30)',
         },
       ],
-      delivery_steps: null,
+      delivery_steps: `You are delivering the approved daily cleaning schedule by posting it to Slack.
+
+The \`<approved-content>\` block in the prompt contains the complete cleaning schedule text prepared during execution (the 🧹 Limpieza section, the 🗑️ Basura section, and the 📊 Resumen).
+
+STEPS:
+1. Read the schedule text from the \`<approved-content>\` block in the prompt.
+2. Post it to the cleaning team's Slack channel using:
+   tsx /tools/slack/post-message.ts --channel "$NOTIFICATION_CHANNEL" --text "<schedule text from approved-content>"
+   Use the NOTIFICATION_CHANNEL environment variable as the channel (run: echo $NOTIFICATION_CHANNEL).
+3. After the post succeeds, confirm delivery by running:
+   tsx /tools/platform/submit-output.ts --summary "Horario de limpieza publicado en Slack" --classification NO_ACTION_NEEDED
+
+CRITICAL: Post the schedule EXACTLY as it appears in <approved-content> — do not rewrite, summarize, or re-translate it. Post to Slack only once.`,
       enrichment_adapter: null,
       department_id: '00000000-0000-0000-0000-000000000021', // VLRE Operations
     },
@@ -4735,7 +4841,8 @@ BOTH must be executed as bash tool calls. A text response without running these 
       supports_tools: true,
       supports_structured_output: true,
       is_active: true,
-      notes: 'Current default model for all AI employees. Approved for production use.',
+      notes:
+        'Approved for production use. NOT recommended for tool-calling workflows — fails bash tool calling via OpenCodeGo (E2E verified 2026-06-03). Use deepseek/deepseek-v4-flash for tool-calling tasks.',
       strengths:
         'Balanced cost/performance. Currently the default model for new archetypes. Proven reliable in production for non-tool-calling workflows.',
       weaknesses:
@@ -5116,11 +5223,11 @@ BOTH must be executed as bash tool calls. A text response without running these 
       input_cost_per_million: 0.0983,
       output_cost_per_million: 0.1966,
       is_free: false,
-      throughput_tokens_per_sec: null,
+      throughput_tokens_per_sec: 77,
       latency_seconds: null,
-      tool_call_error_rate: null,
+      tool_call_error_rate: 0.005,
       structured_output_error_rate: null,
-      quality_index: null,
+      quality_index: 55.0,
       agentic_score: null,
       tool_use_score: null,
       instruction_following_score: null,
@@ -5129,7 +5236,7 @@ BOTH must be executed as bash tool calls. A text response without running these 
       supports_structured_output: true,
       is_active: true,
       notes:
-        'OpenCodeGo-routed. E2E verified for reliable tool calling. Recommended for high-volume tool-calling tasks.',
+        'OpenCodeGo-routed. E2E verified for reliable tool calling. Default model for new archetypes.',
       strengths:
         'Extremely cheap ($0.098/$0.197 per million tokens). Reliable tool calling — E2E verified in production. 1M context window. Fast inference. Best value option for high-volume, tool-calling tasks.',
       weaknesses:
@@ -5266,7 +5373,7 @@ STEP 3 — Submit output (MANDATORY final step):
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
       execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [
@@ -5293,7 +5400,7 @@ STEP 3 — Submit output (MANDATORY final step):
       identity:
         'You are the Google Workspace Assistant for VLRE. You are a general-purpose Google Workspace helper that assists with Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar tasks. You follow instructions precisely, use the appropriate Google tools to complete assigned work, and report results clearly.',
       execution_steps: VLRE_GOOGLE_ASSISTANT_EXECUTION_STEPS,
-      model: 'minimax/minimax-m2.7',
+      model: 'deepseek/deepseek-v4-flash',
       deliverable_type: 'slack_message',
       tool_registry: {
         tools: [

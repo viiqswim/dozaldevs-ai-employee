@@ -5,10 +5,13 @@ import {
   repairJsonStrings,
   type GenerateArchetypeResponse,
 } from '../../../../src/gateway/services/archetype-generator.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../../../src/lib/output-contract-constants.js';
+import { PLUMBING_JUDGE_SYSTEM_PROMPT } from '../../../../src/gateway/services/prompts/archetype-generator-prompts.js';
 
 type LLMCallArgs = { messages: Array<{ role: string; content: string }> };
 
 const ESTIMATOR_SYSTEM_PREFIX = 'You estimate manual task duration';
+const JUDGE_CLEAN_RESPONSE = JSON.stringify({ has_leak: false, fields: [], snippets: [] });
 
 function makeResult(content: string) {
   return {
@@ -24,14 +27,18 @@ function makeResult(content: string) {
 type GenStep = string | Error;
 
 // refine() makes an extra TimeEstimator LLM call beyond the generation call; this
-// routing mock intercepts the estimator call (by its system-prompt prefix) so
-// generationCalls.length counts only the JSON-generation attempts under test.
+// routing mock intercepts the estimator call (by its system-prompt prefix) and the
+// plumbing judge call (by PLUMBING_JUDGE_SYSTEM_PROMPT) so generationCalls.length
+// counts only the JSON-generation attempts under test.
 function makeRoutingMock(genSteps: GenStep[]) {
   const generationCalls: LLMCallArgs[] = [];
   const fn = vi.fn(async (opts: LLMCallArgs) => {
     const systemContent = opts.messages?.[0]?.content ?? '';
     if (systemContent.startsWith(ESTIMATOR_SYSTEM_PREFIX)) {
       return makeResult('5');
+    }
+    if (systemContent === PLUMBING_JUDGE_SYSTEM_PROMPT) {
+      return makeResult(JUDGE_CLEAN_RESPONSE);
     }
     const idx = generationCalls.length;
     generationCalls.push(opts);
@@ -49,7 +56,7 @@ function makeConfig(overrides: Partial<GenerateArchetypeResponse> = {}): Generat
     runtime: 'opencode',
     identity: 'You are a helpful assistant.',
     execution_steps: 'Do the task.',
-    delivery_steps: null,
+    delivery_steps: DEFAULT_DELIVERY_INSTRUCTIONS,
     delivery_instructions: null,
     instructions: 'Do the task.',
     deliverable_type: null,
@@ -245,7 +252,7 @@ const UNCHANGED_REFINE_JSON = JSON.stringify({
   role_name: 'test-employee',
   identity: 'You are a helpful assistant.',
   execution_steps: 'Do the task.',
-  delivery_steps: null,
+  delivery_steps: DEFAULT_DELIVERY_INSTRUCTIONS,
   instructions: 'Do the task.',
   tool_registry: { tools: ['/tools/platform/submit-output.ts'] },
   overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },

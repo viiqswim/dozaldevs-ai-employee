@@ -23,7 +23,7 @@ POST /admin/tenants/:tenantId/archetypes/recommend-model
 
 The model-selection engine (`src/lib/model-selection/`) profiles the archetype and ranks catalog models by cost, quality, speed, and tool reliability. The catalog is managed via `GET/POST/PATCH/DELETE /admin/model-catalog` (global, not tenant-scoped).
 
-**Default seed model**: `minimax/minimax-m2.7` — safe fallback when the recommendation engine is not used.
+**Default seed model**: `deepseek/deepseek-v4-flash` — safe fallback when the recommendation engine is not used.
 
 **Seeded catalog models (global):**
 
@@ -143,7 +143,7 @@ const archetype = await (prisma.archetype as any).upsert({
     runtime: 'opencode', // always opencode
     system_prompt: MY_SYSTEM_PROMPT, // WHO the employee is
     instructions: MY_INSTRUCTIONS, // WHAT to do when triggered
-    model: 'minimax/minimax-m2.7', // MUST be an approved model
+    model: 'deepseek/deepseek-v4-flash', // MUST be an approved model
     deliverable_type: 'slack_message', // semantic label
     tool_registry: { tools: ['/tools/slack/post-message.ts'] },
     trigger_sources: { type: 'manual' },
@@ -302,7 +302,7 @@ In `prisma/seed.ts`, add a `prisma.archetype.upsert` call with:
 - [ ] `role_name` — URL-safe slug (no spaces)
 - [ ] `system_prompt` — employee identity (WHO, not WHAT)
 - [ ] `instructions` — step-by-step procedure (WHAT, with $ENV_VARS and tool calls)
-  - [ ] `model` — use `recommend-model` endpoint output, or `minimax/minimax-m2.7` as default seed
+  - [ ] `model` — use `recommend-model` endpoint output, or `deepseek/deepseek-v4-flash` as default seed
 - [ ] `runtime: 'opencode'`
 - [ ] `risk_model` — approval gate config
 - [ ] `agents_md: PLATFORM_AGENTS_MD` — always set this
@@ -345,7 +345,7 @@ Any stored secret key is auto-uppercased and injected as `$KEY` in the worker ma
 
 | Field                   | daily-summarizer                   | guest-messaging                    | code-rotation                      |
 | ----------------------- | ---------------------------------- | ---------------------------------- | ---------------------------------- |
-| `model`                 | `minimax/minimax-m2.7`             | `minimax/minimax-m2.7`             | `minimax/minimax-m2.7`             |
+| `model`                 | `deepseek/deepseek-v4-flash`       | `deepseek/deepseek-v4-flash`       | `deepseek/deepseek-v4-pro`         |
 | `approval_required`     | `true`                             | `true`                             | `false`                            |
 | `notification_channel`  | `null` (uses tenant default)       | `'C0AMGJQN05S'` (specific channel) | `'C0960S2Q8RL'` (specific channel) |
 | `concurrency_limit`     | `1` (one daily run)                | `5` (multiple concurrent guests)   | `1` (Sifely rate limits)           |
@@ -393,6 +393,41 @@ Remove `OPENCODE_GO_API_KEY` from the environment. No archetype changes needed.
 
 ---
 
+## Reference Data — Live-Fetch, Not Hardcode
+
+When an employee depends on external reference data (a rates page, an HR roster, a zone directory, a policy document, a schedule source), it must **fetch the live source of truth each run**. Never copy the source's values (times, zones, names, prices, assignments) into the employee's `execution_steps` or `instructions`. Encode only the interpretation rules: how to look something up, what to do on a miss, how to handle ambiguity.
+
+### The five durable rules
+
+**1. Fetch live, encode rules.** The employee reads the source (e.g. a Notion page via `NOTION_GET_PAGE_MARKDOWN`, a Google Sheet via Composio, a public URL via HTTP) at the start of every run. It reasons over whatever structure it finds — prose, bullets, table — and applies the interpretation rules you gave it. If the source changes, the employee automatically picks up the change without any archetype edit.
+
+**2. Declared inputs are `{{key}}` placeholders.** When the user declares an input (an `input_schema` item, e.g. `target_date`), the steps reference it as `{{target_date}}` (matching the snake*case key). The platform resolves every `{{key}}` to the actual runtime value via `substituteTemplateVars` on the compiled AGENTS.md, fed by `INPUT*<KEY>`env vars, **before the model runs**. Employee steps must not contain`printenv INPUT_TARGET_DATE`, `node -e "...getUTCDay..."`, or any env-var reads. That is leaked plumbing. This applies to any input key: `{{report_date}}`, `{{customer_name}}`, `{{property_id}}`, etc.
+
+**3. Keep platform mechanics out of the employee description.** Trigger-date handling, the output contract (`submit-output`, `<approved-content>`, `/tmp/` paths), and tool-call CLI syntax belong to the platform base/compiler layers and the `tool-usage-reference` skill, not the per-employee steps. The generator emits intent-level plain English: "Read the target date", "Submit the completed draft for review", "Post the approved content to the team's Slack channel."
+
+**4. Preserve user-provided source identifiers verbatim.** If the user names a source (a Notion page ID, a sheet URL, a specific document), the steps reference that exact identifier. Never invent fictional "X database" or "Y table" names. Read the actual content and reason over whatever structure it has. When the content is ambiguous, abort with an explanation or mark the result UNKNOWN rather than guessing.
+
+**5. Closed allowlist from live data for coverage decisions.** When assigning or looking up coverage from a roster-style source, the employee builds the covered-key set from the live roster, declares it, and treats it as closed. Any item whose key isn't in that roster-derived set is UNASSIGNED, even if the key appears in another source or is geographically adjacent to a covered key. This keeps data live and deterministic — do not hardcode the allowlist.
+
+### What this looks like in practice
+
+```
+WRONG — hardcoded reference data in steps:
+  "Zone A covers properties 101, 102, 103. Zone B covers 104, 105."
+  "Monday cleaner is Alice, Tuesday is Bob, Wednesday is Carol."
+
+CORRECT — live-fetch + rules only:
+  "Read the zone directory from the Notion page at <page-id>.
+   For each property in today's checkout list, look up its zone.
+   If a property's zone is not in the directory, mark it UNASSIGNED."
+```
+
+### Common mistake
+
+Copying a reference table into `execution_steps` because it "doesn't change often" is the wrong tradeoff. It creates silent drift: the source updates, the employee doesn't, and the employee produces wrong output with no error. Always fetch live.
+
+---
+
 ## Intent-Level Steps Convention & role_name Derivation
 
 ### Intent-Level Steps (Wizard-Generated Employees)
@@ -424,7 +459,7 @@ If the description yields no valid slug (e.g. emoji-only input), a deterministic
 
 ## Common Mistakes to Avoid
 
-1. **Wrong model** — use only models from the `model_catalog`. Default seed: `minimax/minimax-m2.7`. Use the `recommend-model` endpoint rather than hardcoding.
+1. **Wrong model** — use only models from the `model_catalog`. Default seed: `deepseek/deepseek-v4-flash`. Use the `recommend-model` endpoint rather than hardcoding.
 2. **tenant_id in update** — immutable. Only in `create` block of upsert.
 3. **Credentials in `.env`** — go in `tenant_secrets`. Only legitimate `.env` exception: `WEBHOOK_PUBLIC_URL`.
 4. **Channel IDs in shared code** — channel IDs belong in `notification_channel` field or archetype `instructions`, not in `employee-lifecycle.ts`.
@@ -432,6 +467,7 @@ If the description yields no valid slug (e.g. emoji-only input), a deterministic
 6. **Employee-specific language in shared files** — `employee-lifecycle.ts`, `opencode-harness.mts`, `src/gateway/`, `src/lib/` serve ALL employees. Keep them generic.
 7. **Forgetting `agents_md`** — always set `agents_md: PLATFORM_AGENTS_MD` (read from `src/workers/config/agents.md`).
 8. **CLI invocations in wizard-generated steps** — generated `execution_steps` must use intent prose, not `tsx /tools/...` commands. The worker resolves tool commands at runtime.
+9. **Empty `delivery_steps` on create** — `POST /admin/tenants/:tenantId/archetypes` rejects null/empty `delivery_steps` with `400 MISSING_DELIVERY_CONFIG`. Employees that deliver inside execution and emit `NO_ACTION_NEEDED` must explicitly pass `delivery_steps: null` — the route distinguishes `null` (valid escape hatch) from `""` (invalid). The generator's `postProcess()` fills a null `delivery_steps` with `DEFAULT_DELIVERY_INSTRUCTIONS` (from `src/lib/output-contract-constants.ts`) so wizard-created employees always have a non-null value; manual seeds that intend the escape hatch must set `delivery_steps: null` explicitly.
 
 ---
 
@@ -446,6 +482,54 @@ When `false` (default), all tools are available — byte-identical to pre-enforc
 **Pre-enforcement gate**: `PATCH /admin/tenants/:tenantId/archetypes/:id` with `enforce_tool_registry: true` (flipping from `false`) re-resolves the archetype's current `tool_registry.tools` via `resolveToolPaths()` and returns `400 ENFORCE_REGISTRY_INVALID` if any tool drops or the resolved list is empty. This prevents silently locking an employee out of all tools.
 
 **Rule**: Do NOT enable `enforce_tool_registry` on any employee without first validating that every path in its `tool_registry` resolves to a real file with a descriptor.
+
+### Composio Tool Auto-Attach (postProcess)
+
+`postProcess()` in `src/gateway/services/archetype-generator.ts` runs for ALL generation paths (`generate`, `refine`, `converse`). After normalizing tool paths it scans the generated `execution_steps` for Composio-app keywords (`notion`, `google sheet`, `gmail`, `linear`, `jira`, `airtable`, etc.) and, if any match, guarantees `/tools/composio/execute.ts` is present in `tool_registry.tools`. This mirrors the existing GitHub-tool auto-injection and exists because the LLM unreliably includes the Composio tool on its own — without it, an employee that reads Notion would be generated without the runtime tool and fail. The check is self-gating: the generator prompt only emits Composio-app steps when apps are connected, so keyword detection on the steps is sufficient (no tenant-connection state is threaded into `postProcess`).
+
+### Shared Authoring Rules Constant
+
+The domain authoring rules (multi-source/live-fetch, closed-allowlist coverage with its REQUIRED VERBATIM PHRASE, source-identifier fidelity, runtime reference-data extraction, backup-fallback, `{{key}}` emission, the Composio tool-registry rule) are defined ONCE as `export const ARCHETYPE_AUTHORING_RULES` in `src/gateway/services/prompts/archetype-generator-prompts.ts` and composed into BOTH `SYSTEM_PROMPT_PRE` (one-shot) and `buildConverseSystemPromptPre` (wizard) via `${ARCHETYPE_AUTHORING_RULES}`. This makes cross-path parity structural — the rules cannot drift between paths. `tests/unit/generator-prompts-parity.test.ts` guards the markers; `tests/unit/golden-prompts.test.ts` guards byte-level prompt output. When changing a shared rule, edit the constant once; do NOT duplicate rule text into either prompt.
+
+### No-Leak Rule, LLM-Judge, and Plumbing-Free Delivery Default
+
+#### No-Leak Rule
+
+All user-facing generated fields (`identity`, `execution_steps`, `delivery_steps`, and the `overview` object) must be written in intent-level plain English only. The rule is defined once as `ARCHETYPE_AUTHORING_RULES` in `src/gateway/services/prompts/archetype-generator-prompts.ts` and composed into both `SYSTEM_PROMPT_PRE` (one-shot `generate`) and `buildConverseSystemPromptPre` (wizard `converse`) via template interpolation. This makes the rule structurally shared across all three generation paths — it cannot drift.
+
+**Forbidden in every generated prose field:**
+
+- Shell tool paths: anything matching `/tools/...` (e.g. `/tools/slack/post-message.ts`)
+- `tsx` invocations (e.g. `tsx /tools/...`)
+- CLI flag syntax: `--flag` or `--flag value` patterns (e.g. `--draft-file`, `--classification`)
+- Filesystem paths: `/tmp/...` paths (e.g. `/tmp/summary.txt`)
+- Raw Slack channel IDs: strings matching `C[A-Z0-9]{8,10}` (e.g. `C0960S2Q8RL`)
+
+**Allowed (not plumbing):**
+
+- `{{key}}` template placeholders (e.g. `{{target_date}}`) — runtime input substitutions
+- `INPUT_*` references — legacy runtime env var references
+- Plain business codes or identifiers (e.g. `CONTRACT2024`, `ZONE-A`)
+- The word "Slack" or "channel" in plain English — only raw channel IDs are forbidden
+- `$NOTIFICATION_CHANNEL`, `$PUBLISH_CHANNEL` — platform-resolved at runtime
+
+#### LLM-Judge Validate-and-Retry Loop
+
+After each generation, `validateAndRetryProse` in `src/gateway/services/archetype-generator.ts` calls `judgeProseForPlumbing` to check the generated fields for leaks. The judge uses `PLUMBING_JUDGE_SYSTEM_PROMPT` (defined in `archetype-generator-prompts.ts`) and inspects `identity`, `execution_steps`, `delivery_steps`, and `overview` sub-fields.
+
+**Retry behavior:**
+
+- If the judge detects a leak, `validateAndRetryProse` appends a corrective feedback message and calls the regenerate function again (retry 1).
+- If the leak persists, it retries once more (retry 2).
+- After 3 total generations (original + 2 retries), it accepts the last attempt and emits `log.warn` — employee creation is never blocked.
+
+**Fail-open guarantee:** Any error inside `judgeProseForPlumbing` (LLM call failure, JSON parse error, unexpected response shape) returns `{ has_leak: false }` and emits `log.warn`. The judge never throws and never blocks creation.
+
+`validateAndRetryProse` is called at three sites: `generate()`, `refine()`, and the CREATE branch of `converse()`. All three paths share the same retry wrapper — no path bypasses the judge.
+
+#### DEFAULT_DELIVERY_INSTRUCTIONS
+
+`DEFAULT_DELIVERY_INSTRUCTIONS` in `src/lib/output-contract-constants.ts` is the fallback used when `delivery_steps` is null or empty. It is plain English with no tool paths, no `/tmp/` references, and no CLI syntax — it describes intent only. `postProcess()` in `archetype-generator.ts` fills a null `delivery_steps` with this constant so wizard-created employees always have a non-null value. The route handler in `admin-archetype-converse-create.ts` also applies it as a fallback. Manual seeds that intend the escape hatch must set `delivery_steps: null` explicitly.
 
 ### Archetype Editing Shared Helpers
 

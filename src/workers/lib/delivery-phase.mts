@@ -19,6 +19,7 @@ import {
   loadCustomIntegrations,
 } from './agents-md-compiler.mjs';
 import { classifyFailure } from './failure-codes.js';
+import { buildTemplateVars, substituteTemplateVars } from './template-vars.js';
 import { assembleTaskPrompt } from './prompt-assembler.mjs';
 import {
   markFailed,
@@ -117,7 +118,7 @@ export async function runDeliveryPhase(
   // 5. Compile AGENTS.md for delivery phase (same compiled doc, delivery prompt points to <delivery-instructions>)
   try {
     const { writeFile } = await import('node:fs/promises');
-    const compiledAgentsMd = compileAgentsMd({
+    const rawCompiledAgentsMd = compileAgentsMd({
       identity: archetype.identity ?? '',
       executionSteps: archetype.execution_steps ?? '',
       deliverySteps: archetype.delivery_steps ?? '',
@@ -127,6 +128,11 @@ export async function runDeliveryPhase(
       connectedToolkits,
       connectedServices,
     });
+    // Resolve all declared-input placeholders ({{key}}) generically.
+    // Same mechanism as execution phase — ensures delivery_steps with
+    // {{key}} references also receive the actual runtime values.
+    const templateVars = buildTemplateVars();
+    const compiledAgentsMd = substituteTemplateVars(rawCompiledAgentsMd, templateVars);
     await writeFile('/app/AGENTS.md', compiledAgentsMd, 'utf8');
     log.info('[opencode-harness] Compiled AGENTS.md written for delivery phase');
   } catch (err) {

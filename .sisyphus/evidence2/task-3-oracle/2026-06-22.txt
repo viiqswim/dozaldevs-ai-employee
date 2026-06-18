@@ -1,0 +1,9 @@
+Command: HOSTFULLY_API_KEY=Y6EQ7KgSwoOGCokD HOSTFULLY_AGENCY_UID=942d08d9-82bb-4fd3-9091-ca0c6b50b578 ./node_modules/.bin/tsx src/worker-tools/hostfully/get-checkouts.ts --date 2026-06-22
+Exit code: 0
+Date: 2026-06-22 (Monday)
+
+Raw output:
+[{"propertyUid":"2295ff78-deee-40c6-a1f7-e2025d8ce110","listingName":"6002-PAL-HOME","normalizedAddress":"6002 Palm Circle","roomId":"Casa","zipCode":"78741","city":"Austin, TX","checkIn":"2026-06-21T16:00:00","checkOut":"2026-06-22T11:00:00","checkOutTime":"11:00","guestName":"Laurie Rotondo","status":"BOOKED","channel":"VRBO"}]
+
+Checkout count: 1
+Properties: 6002 Palm Circle (Home)

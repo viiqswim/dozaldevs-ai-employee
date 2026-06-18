@@ -1,0 +1,36 @@
+TASK 4 — BASELINE-A EVIDENCE
+Date: 2026-06-22 (Monday)
+Archetype: 77e77c86-3bce-49a0-84e3-ccf7dac37b33 (cleaning-schedule-v16, hardcoded)
+Trigger: {"inputs":{"target_date":"2026-06-22"}}
+
+TRIGGER RESPONSE:
+{"task_id":"94dfc866-d133-4f8e-803c-82bc804ffca0","status_url":"/admin/tenants/00000000-0000-0000-0000-000000000003/tasks/94dfc866-d133-4f8e-803c-82bc804ffca0"}
+
+TASK ID: 94dfc866-d133-4f8e-803c-82bc804ffca0
+
+STATUS TRACE (task_status_log):
+  Received      -> Triaging       2026-06-17 17:03:54.584
+  Triaging      -> AwaitingInput  2026-06-17 17:03:54.9
+  AwaitingInput -> Ready          2026-06-17 17:03:54.91
+  Ready         -> Executing      2026-06-17 17:03:54.918
+  Submitting    -> Validating     2026-06-17 17:05:10.206
+  Validating    -> Submitting     2026-06-17 17:05:10.216
+  Submitting    -> Delivering     2026-06-17 17:05:10.28
+  Delivering    -> Done           (confirmed via tasks.status=Done)
+
+FINAL STATUS: Done
+DURATION: ~1m45s execution + delivery
+CLASSIFICATION: NEEDS_APPROVAL
+DELIVERABLE: deliverables.external_ref=94dfc866... delivery_type=slack_message
+
+COMPARISON VERDICT vs Task-3 oracle:
+  CLEANING ASSIGNMENTS: EXACT MATCH
+    - SIN ASIGNAR 6002-Palm-Circle Home 180min (78741 gap) [oracle: UNKNOWN 180] OK
+    - Grand total 180 min              [oracle: 180] OK
+    - Correctly notes "No hay otras propiedades con checkout" (only 1 checkout)
+  TRASH DUTIES: PARTIAL DIVERGENCE
+    - Baseline emitted only 2 reminders (219 Paul, 407 Gevers — martes/78203)
+    - Oracle expected Monday-pickup confirms (7213/271-Gina) + ~6 Tue reminders.
+      Same under-reporting as 06-15.
+
+OVERALL: Cleaning = exact match. Trash = incomplete (consistent hardcoded limitation).

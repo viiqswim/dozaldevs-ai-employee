@@ -17,7 +17,6 @@ import { TimeEstimator, shouldReEstimate } from '../services/time-estimator.js';
 import { callLLM } from '../../lib/call-llm.js';
 import { ArchetypeGenerationCallRepository } from '../../repositories/ArchetypeGenerationCallRepository.js';
 import { resolveToolPaths } from '../lib/archetype-edit-helpers.js';
-import { resolveDelivery } from '../../lib/delivery-resolver.js';
 
 export interface AdminArchetypesRouteOptions {
   prisma?: PrismaClient;
@@ -194,20 +193,15 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
         ...rest
       } = bodyResult.data;
 
-      // Escape hatch: deliverable_type === null resolves to no-delivery-escape-hatch (allowed).
-      const createDelivery = resolveDelivery(
-        {
-          delivery_steps: rest.delivery_steps ?? null,
-          deliverable_type: rest.deliverable_type ?? null,
-        },
-        undefined,
-      );
-      if (createDelivery.kind === 'misconfigured') {
+      // Save-time gate: every employee needs delivery_steps regardless of
+      // deliverable_type. The runtime NO_ACTION_NEEDED escape hatch in
+      // resolveDelivery() stays intact — this only closes the null/null save loophole.
+      if (!rest.delivery_steps || rest.delivery_steps.trim() === '') {
         sendError(
           res,
           400,
           'MISSING_DELIVERY_CONFIG',
-          'Delivery configuration is required for employees that produce deliverables',
+          'Every employee needs a delivery step that says how its finished work is sent out. Please describe how this employee delivers its results.',
         );
         return;
       }
@@ -390,20 +384,16 @@ export function adminArchetypesRoutes(opts: AdminArchetypesRouteOptions = {}): R
 
         // Only gate when the patch touches a delivery field; grandfathered rows
         // stay patchable for unrelated fields (status, instructions, override).
+        // When touched, the effective delivery_steps must be non-empty regardless
+        // of deliverable_type — same save-time invariant as the POST gate.
         if (rest.deliverable_type !== undefined || rest.delivery_steps !== undefined) {
-          const patchDelivery = resolveDelivery(
-            {
-              delivery_steps: rest.delivery_steps ?? existing.delivery_steps,
-              deliverable_type: rest.deliverable_type ?? existing.deliverable_type,
-            },
-            undefined,
-          );
-          if (patchDelivery.kind === 'misconfigured') {
+          const effectiveDeliverySteps = rest.delivery_steps ?? existing.delivery_steps;
+          if (!effectiveDeliverySteps || effectiveDeliverySteps.trim() === '') {
             sendError(
               res,
               400,
               'MISSING_DELIVERY_CONFIG',
-              'Delivery configuration is required for employees that produce deliverables',
+              'Every employee needs a delivery step that says how its finished work is sent out. Please describe how this employee delivers its results.',
             );
             return;
           }

@@ -283,6 +283,8 @@ pnpm build       # TypeScript compile
 
 > `pnpm test` stays in watch mode — use `pnpm test:unit` in scripts or CI where you need a clean exit.
 
+> **Orphan protection**: All `test*` scripts run through `scripts/run-vitest.mjs`, a signal-safe wrapper. Because `vitest.config.ts` uses `pool: 'forks'`, an abnormally-killed run (closed tmux pane, killed `| tee` pipeline, dead parent shell) would otherwise leave forked workers running forever at `ppid=1`, pinning CPU cores. The wrapper runs vitest in its own process group and reaps the whole group on any exit path. **Never call `vitest` / `pnpm exec vitest` directly** — always go through the `pnpm test*` scripts so the protection applies.
+
 **Expected results**: All tests should pass with 0 failures. One pre-existing skip is expected and intentional: `container-boot.test.ts` skips all 4 tests when Docker is unavailable — not a failure.
 
 ## Environment File Conventions

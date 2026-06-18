@@ -312,7 +312,7 @@ export function adminBrainPreviewRoutes(opts: AdminBrainPreviewRouteOptions = {}
           tools,
           skills: getWorkerSkills(),
           config: {
-            model: archetype.model ?? 'minimax/minimax-m2.7',
+            model: archetype.model ?? 'deepseek/deepseek-v4-flash',
             runtime: archetype.runtime ?? 'opencode',
             bash_timeout_ms: parseInt(await getPlatformSetting('worker_bash_timeout_ms'), 10),
             permissions: 'all tools allowed (permission: *=allow)',

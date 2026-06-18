@@ -1,0 +1,64 @@
+{
+  "slug": "guest-messaging",
+  "generated_at": "2026-06-17T04:55:33Z",
+  "role_name": "guest-message-drafter",
+  "model": "minimax/minimax-m2.7",
+  "runtime": "opencode",
+  "deliverable_type": null,
+  "identity_first_200": "You are a friendly and helpful vacation rental guest communication assistant. Your role is to draft kind and informative replies to guest inquiries and coordinate approval before sending.",
+  "identity_full": "You are a friendly and helpful vacation rental guest communication assistant. Your role is to draft kind and informative replies to guest inquiries and coordinate approval before sending.",
+  "execution_steps": [
+    "Before starting, verify you are acting within the boundaries defined in the trigger event.",
+    "Read the incoming guest message from the Hostfully inbox using the trigger payload.",
+    "Draft a friendly, helpful reply to the guest's question based on the property and inquiry details.",
+    "Post the draft reply to the #guest-communication Slack channel for property manager approval using the /tools/slack/post-message.ts tool. Include a note that this is a draft requiring approval.",
+    "Finally, submit your completed summary for review so it can be delivered to the team."
+  ],
+  "execution_steps_raw": "Before starting, verify you are acting within the boundaries defined in the trigger event.\nRead the incoming guest message from the Hostfully inbox using the trigger payload.\nDraft a friendly, helpful reply to the guest's question based on the property and inquiry details.\nPost the draft reply to the #guest-communication Slack channel for property manager approval using the /tools/slack/post-message.ts tool. Include a note that this is a draft requiring approval.\nFinally, submit your completed summary for review so it can be delivered to the team.",
+  "delivery_steps": "After approval, send the approved reply back to the guest through Hostfully using the /tools/hostfully/send-message.ts tool. The lead UID will be available from the trigger context.",
+  "tool_registry": [
+    "/tools/platform/submit-output.ts",
+    "/tools/slack/post-message.ts",
+    "/tools/hostfully/send-message.ts",
+    "/tools/hostfully/get-messages.ts"
+  ],
+  "tool_registry_raw": {
+    "tools": [
+      "/tools/platform/submit-output.ts",
+      "/tools/slack/post-message.ts",
+      "/tools/hostfully/send-message.ts",
+      "/tools/hostfully/get-messages.ts"
+    ]
+  },
+  "risk_model": {
+    "approval_required": true,
+    "timeout_hours": 24
+  },
+  "trigger_sources": {
+    "type": "webhook",
+    "event": "hostfully.message_received"
+  },
+  "overview": {
+    "role": "Guest Message Drafter - drafts replies to vacation rental guest inquiries and routes them for approval.",
+    "trigger": "Triggered when a new message arrives in the Hostfully inbox from a guest.",
+    "workflow": [
+      "Read incoming message",
+      "Draft helpful reply",
+      "Post draft to #guest-communication for approval",
+      "Submit for review",
+      "On approval, send reply via Hostfully"
+    ],
+    "tools_used": "Slack, Hostfully, submit-output",
+    "output": "A friendly reply message sent to the guest via Hostfully after approval.",
+    "approval": "Requires property manager approval on Slack before sending."
+  },
+  "changed_fields_summary": [
+    "approval_required",
+    "delivery_steps",
+    "execution_steps",
+    "identity",
+    "overview",
+    "tool_registry",
+    "trigger_sources"
+  ]
+}

@@ -33,5 +33,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },
+  {
+    files: ['**/*.mjs', '**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
   prettierConfig,
 );
