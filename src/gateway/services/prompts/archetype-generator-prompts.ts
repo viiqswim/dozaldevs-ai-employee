@@ -1,4 +1,4 @@
-import { SUMMARY_PATH, APPROVAL_MESSAGE_PATH } from '../../../lib/output-contract-constants.js';
+import { SUMMARY_PATH } from '../../../lib/output-contract-constants.js';
 
 export const CODE_EMPLOYEE_PLATFORM_RULES_OVERRIDE =
   'You are authorized to read and write files anywhere in /tmp/workspace/. This is a code-writing employee. Your workspace IS /tmp/workspace/. The restriction about not modifying files outside /tools/ does NOT apply to you.';
@@ -356,19 +356,17 @@ configuration choices that vary per run). If the description mentions data that 
 a webhook trigger, reference it as an env var ($VAR_NAME), not as an input_schema item.
 
 ## Approval Flow Pattern
-When the employee produces content requiring human approval (NEEDS_APPROVAL classification):
-1. Check the Available Tools list for a specialized approval tool for this domain (e.g., a tool named "post-*-approval.ts")
-2. If one exists: call it BEFORE submit-output.ts. Pass --thread-ts "$NOTIFY_MSG_TS" so the card appears as a reply under the task notification. The approval tool uses $NOTIFICATION_CHANNEL automatically for the channel — do NOT pass --channel. The approval tool writes ${APPROVAL_MESSAGE_PATH} AND ${SUMMARY_PATH} automatically — do NOT call submit-output.ts separately after it.
-3. If no specialized approval tool exists: call submit-output.ts directly with --classification NEEDS_APPROVAL.
+When the employee produces content requiring human approval, describe the intent in plain English — the runtime resolves the exact tools:
+1. If the domain has a specialized approval step (e.g., posting an approval card for this kind of work), the employee posts that approval card before submitting, so a human can review in the notification thread.
+2. Otherwise, the employee submits its output for review with a NEEDS_APPROVAL classification.
+Either way, write this as plain-English intent in the steps — never spell out CLI commands, tool paths, or flags.
 
 ## Passing Data to the Delivery Phase
-If the delivery phase needs identifiers or data from the execution phase (e.g., external
-system IDs, recipient info, content identifiers), include --metadata with a JSON object
-in the submit-output.ts call:
-  tsx /tools/platform/submit-output.ts ... --metadata '{"key": "value", ...}'
-The delivery container receives this in the approved-content JSON under "metadata".
-Use this when the delivery step needs identifiers that are only known during execution
-(e.g., a thread ID needed to reply to a specific conversation).
+If the delivery phase needs identifiers or data known only during execution (e.g., external
+system IDs, recipient info, a thread ID needed to reply to a specific conversation), the
+execution phase passes those identifiers along with the approved content when it submits its
+work. The delivery phase then receives them alongside the approved content. Describe this in
+plain English in the steps — do not reference CLI flags or tool paths.
 
 ## Delivery Templates
 
@@ -398,7 +396,7 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "runtime": "opencode",
   "identity": "2-4 sentences describing who this employee is, their persona, role, and org context.",
   "execution_steps": "1. First step.\\n2. Second step.\\n3. Third step.",
-  "delivery_steps": "1. Read the approved content from <approved-content>.\\n2. Deliver it to the configured destination using the appropriate tool.\\n3. Submit output confirming delivery via tsx /tools/platform/submit-output.ts --summary \\"Delivered successfully\\" --classification NO_ACTION_NEEDED.",
+  "delivery_steps": "1. Take the approved content provided for delivery.\\n2. Post it to the team's notification channel.\\n3. Confirm the delivery is complete.",
   "deliverable_type": "slack_message",
   "input_schema": [
     {
@@ -457,13 +455,13 @@ ${INJECTION_BOUNDARY}
 - \`model\` should be \`deepseek/deepseek-v4-flash\` as a default placeholder — the recommendation engine will override this
 - \`runtime\` is ALWAYS \`opencode\`
 - Preserve all fields that are not affected by the refinement instruction
-- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses \`$NOTIFICATION_CHANNEL\`/\`$PUBLISH_CHANNEL\` env var references for delivery channels, includes explicit \`tsx /tools/...\` invocations, writes content to /tmp/draft.txt, ends with a submit-output FINAL STEP (\`tsx /tools/platform/submit-output.ts --summary "..." --classification "NEEDS_APPROVAL|NO_ACTION_NEEDED"\`), and ends with a STOP directive. Preserve these patterns if already present; add them if missing.
+- Ensure execution_steps opens with a boundary enforcement line, writes channel names directly in steps (never a placeholder env var for source channels), uses intent-level plain English descriptions for each step (no tsx /tools/... CLI commands, no printenv, no /tmp/ paths, no node -e shell commands), references declared inputs using {{key}} placeholders (e.g. {{target_date}}) NOT env vars, and ends with a FINAL STEP that submits the completed work for review using plain language (e.g. "Finally, submit your completed work for review so it can be delivered."). Preserve these patterns if already present; add them if missing.
 - Only modify what the refinement instruction asks to change
 - NEVER create an \`input_schema\` item for a Slack channel. The platform provides a dedicated Slack Channel setting — do not generate inputs for channel names.
 - Always regenerate the \`overview\` field to accurately reflect the refined configuration — it must stay in sync with the updated identity, execution_steps, trigger_sources, and risk_model
 - \`identity\` is 2-4 sentences describing WHO this employee is. MUST include: (a) the employee's name/title, (b) which organization or team they work for, (c) their area of expertise, (d) their communication style. Example: "You are Alex, the Operations Coordinator at Acme Properties. You specialize in daily operations reporting and communicate in a concise, professional tone." No procedural steps in identity.
 - Each \`execution_steps\` step MUST be a concrete action, not a vague instruction. Bad: "1. Analyze the data." Good: "1. Read all messages in the #support Slack channel from the last 24 hours using the Slack read-channel tool." Steps must reference specific tools from tool_registry by name when applicable.
-- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination. MUST include: (a) read the approved content from \`<approved-content>\`, (b) the specific delivery action (e.g., "Post to Slack using the post-message tool"), (c) submit output confirming delivery. Set to null ONLY if approval_required is false AND no delivery action is needed.
+- \`delivery_steps\` is a numbered list of steps describing how approved content is delivered to its final destination, written in intent-level plain English — NO \`/tools/...\` CLI paths, NO \`tsx\` invocations, NO \`--flag\` syntax, NO \`/tmp/...\` paths, NO raw Slack channel IDs (refer to "the team's notification channel", never a literal channel ID). MUST include: (a) take the approved content provided for delivery, (b) the delivery action in plain English (e.g., "Post it to the team's Slack channel"), (c) confirm the delivery is complete. Set to null ONLY if approval_required is false AND no delivery action is needed.
 
 ## Separation of Concerns (CRITICAL)
 - \`identity\` = WHO (persona, no actions)
