@@ -23,4 +23,4 @@ export const EXECUTION_PHASE_VALUE = 'execution';
 export const OUTPUT_CONTRACT_VERSION = 1;
 
 export const DEFAULT_DELIVERY_INSTRUCTIONS =
-  'Post the approved content to the configured notification channel using the Slack integration. Then write a confirmation to /tmp/summary.txt via submit-output.';
+  'Post the approved content to the configured notification channel using the Slack integration, then confirm the delivery is complete.';
