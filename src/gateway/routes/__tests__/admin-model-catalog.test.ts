@@ -38,6 +38,42 @@ vi.mock('../../../gateway/middleware/authz.js', () => ({
     },
 }));
 
+import type { AuthenticatedUser } from '../../../lib/auth/types.js';
+
+function makeAppWithUserAuth(prismaOverrides: Record<string, unknown> = {}) {
+  process.env.SERVICE_TOKEN = ADMIN_KEY;
+  process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+  const app = express();
+  app.use(express.json());
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (req.headers.authorization === 'Bearer user-jwt') {
+      (req as Request & { auth?: AuthenticatedUser }).auth = {
+        id: 'user-123',
+        supabaseId: 'supa-123',
+        email: 'user@example.com',
+        name: null,
+        globalRole: 'USER',
+        status: 'active',
+      };
+    }
+    next();
+  });
+  app.use(
+    adminModelCatalogRoutes({
+      prisma: {
+        modelCatalog: {
+          findMany: vi.fn(),
+          findFirst: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          ...prismaOverrides,
+        },
+      } as never,
+    }),
+  );
+  return app;
+}
+
 const ADMIN_KEY = 'test-admin-key';
 const MODEL_ID = 'c1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d6';
 const NOW = new Date('2026-01-01T00:00:00Z');
@@ -119,6 +155,17 @@ describe('GET /admin/model-catalog', () => {
     expect(res.body).toEqual({ error: 'Unauthorized' });
   });
 
+  it('returns 200 for a JWT-authenticated user (Role.USER)', async () => {
+    const model = makeModelRow();
+    const findMany = vi.fn().mockResolvedValue([model]);
+    const app = makeAppWithUserAuth({ findMany });
+    const res = await request(app)
+      .get('/admin/model-catalog')
+      .set('Authorization', 'Bearer user-jwt');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
   it('returns 200 with list of models', async () => {
     const model = makeModelRow();
     const findMany = vi.fn().mockResolvedValue([model]);
@@ -176,6 +223,17 @@ describe('GET /admin/model-catalog/:id', () => {
     const app = makeApp();
     const res = await request(app).get(`/admin/model-catalog/${MODEL_ID}`);
     expect(res.status).toBe(401);
+  });
+
+  it('returns 200 for a JWT-authenticated user (Role.USER)', async () => {
+    const model = makeModelRow();
+    const findFirst = vi.fn().mockResolvedValue(model);
+    const app = makeAppWithUserAuth({ findFirst });
+    const res = await request(app)
+      .get(`/admin/model-catalog/${MODEL_ID}`)
+      .set('Authorization', 'Bearer user-jwt');
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(MODEL_ID);
   });
 
   it('returns 200 with the model when found', async () => {
