@@ -73,7 +73,11 @@ export function buildConnectedAppsBlock(
  * prompt (buildConverseSystemPromptPre). Single-sourcing these rules makes
  * cross-path parity structural — they can no longer drift apart.
  */
-export const ARCHETYPE_AUTHORING_RULES = `## Multi-Source Reasoning (MANDATORY)
+export const ARCHETYPE_AUTHORING_RULES = `## No Plumbing Leaks (MANDATORY — applies to ALL generated user-facing fields)
+
+The generated \`identity\`, \`execution_steps\`, \`delivery_steps\`, and the \`overview\` object MUST be written in intent-level plain English only — they describe WHAT the employee does, never HOW the platform wires it. The following technical plumbing is FORBIDDEN in every one of these fields: NO \`/tools/...\` CLI paths, NO \`tsx\` invocations, NO \`--flag\` syntax, NO \`/tmp/...\` paths, NO raw Slack channel IDs (refer to "the team's notification channel", never a literal channel ID). The worker resolves all tool commands, channels, and file paths at runtime — never spell them out in these fields.
+
+## Multi-Source Reasoning (MANDATORY)
 
 When the description mentions multiple distinct data sources (e.g., "we use [System A] for X and [System B] for Y"), execution_steps MUST include a dedicated numbered step for EACH data source. The steps must follow this pattern:
 1. Fetch primary data from System A (e.g., checkouts, orders, tickets)
