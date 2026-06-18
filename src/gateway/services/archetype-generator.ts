@@ -334,6 +334,27 @@ function toKebabCase(input: string): string {
     .replace(/^-|-$/g, '');
 }
 
+// Keywords that indicate execution_steps reference a Composio-connected app.
+// When any keyword matches, /tools/composio/execute.ts is auto-attached to tool_registry.
+const COMPOSIO_APP_KEYWORDS = [
+  'notion',
+  'google sheet',
+  'google doc',
+  'google drive',
+  'google calendar',
+  'gmail',
+  'linear',
+  'jira',
+  'airtable',
+  'asana',
+  'trello',
+  'hubspot',
+  'salesforce',
+  'confluence',
+  'monday',
+  'clickup',
+];
+
 // Failure signals a normalization regression, not bad user input — warn, don't throw.
 const PostProcessedArchetypeSchema = z.object({
   role_name: z.string(),
@@ -395,6 +416,22 @@ function postProcess(raw: unknown, description: string): GenerateArchetypeRespon
         }
         return normalized;
       });
+  }
+
+  if (typeof result.execution_steps === 'string') {
+    const stepsLower = result.execution_steps.toLowerCase();
+    const hasComposioKeyword = COMPOSIO_APP_KEYWORDS.some((kw) => stepsLower.includes(kw));
+    if (hasComposioKeyword) {
+      const composioTool = '/tools/composio/execute.ts';
+      const registry = result.tool_registry as { tools: string[] } | null | undefined;
+      if (registry && Array.isArray(registry.tools)) {
+        if (!registry.tools.includes(composioTool)) {
+          registry.tools.push(composioTool);
+        }
+      } else {
+        result.tool_registry = { tools: ['/tools/platform/submit-output.ts', composioTool] };
+      }
+    }
   }
 
   const rawTrigger = result.trigger_sources as Record<string, unknown> | null | undefined;
