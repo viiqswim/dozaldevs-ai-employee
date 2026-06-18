@@ -52,7 +52,9 @@ describe('generator-prompts parity', () => {
   });
 
   it('buildConverseSystemPromptPre contains the runtime reference-data extraction pattern', () => {
-    expect(converse).toContain('RUNTIME REFERENCE-DATA EXTRACTION PATTERN');
+    // Both paths now compose the shared ARCHETYPE_AUTHORING_RULES constant, so the
+    // converse path uses the canonical title-case heading (no longer the ALL-CAPS variant).
+    expect(converse).toContain('Runtime Reference-Data Extraction Pattern');
   });
 
   it('both paths have the same number of numbered bold items (parity check)', () => {
