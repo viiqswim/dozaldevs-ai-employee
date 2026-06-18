@@ -491,6 +491,46 @@ When `false` (default), all tools are available — byte-identical to pre-enforc
 
 The domain authoring rules (multi-source/live-fetch, closed-allowlist coverage with its REQUIRED VERBATIM PHRASE, source-identifier fidelity, runtime reference-data extraction, backup-fallback, `{{key}}` emission, the Composio tool-registry rule) are defined ONCE as `export const ARCHETYPE_AUTHORING_RULES` in `src/gateway/services/prompts/archetype-generator-prompts.ts` and composed into BOTH `SYSTEM_PROMPT_PRE` (one-shot) and `buildConverseSystemPromptPre` (wizard) via `${ARCHETYPE_AUTHORING_RULES}`. This makes cross-path parity structural — the rules cannot drift between paths. `tests/unit/generator-prompts-parity.test.ts` guards the markers; `tests/unit/golden-prompts.test.ts` guards byte-level prompt output. When changing a shared rule, edit the constant once; do NOT duplicate rule text into either prompt.
 
+### No-Leak Rule, LLM-Judge, and Plumbing-Free Delivery Default
+
+#### No-Leak Rule
+
+All user-facing generated fields (`identity`, `execution_steps`, `delivery_steps`, and the `overview` object) must be written in intent-level plain English only. The rule is defined once as `ARCHETYPE_AUTHORING_RULES` in `src/gateway/services/prompts/archetype-generator-prompts.ts` and composed into both `SYSTEM_PROMPT_PRE` (one-shot `generate`) and `buildConverseSystemPromptPre` (wizard `converse`) via template interpolation. This makes the rule structurally shared across all three generation paths — it cannot drift.
+
+**Forbidden in every generated prose field:**
+
+- Shell tool paths: anything matching `/tools/...` (e.g. `/tools/slack/post-message.ts`)
+- `tsx` invocations (e.g. `tsx /tools/...`)
+- CLI flag syntax: `--flag` or `--flag value` patterns (e.g. `--draft-file`, `--classification`)
+- Filesystem paths: `/tmp/...` paths (e.g. `/tmp/summary.txt`)
+- Raw Slack channel IDs: strings matching `C[A-Z0-9]{8,10}` (e.g. `C0960S2Q8RL`)
+
+**Allowed (not plumbing):**
+
+- `{{key}}` template placeholders (e.g. `{{target_date}}`) — runtime input substitutions
+- `INPUT_*` references — legacy runtime env var references
+- Plain business codes or identifiers (e.g. `CONTRACT2024`, `ZONE-A`)
+- The word "Slack" or "channel" in plain English — only raw channel IDs are forbidden
+- `$NOTIFICATION_CHANNEL`, `$PUBLISH_CHANNEL` — platform-resolved at runtime
+
+#### LLM-Judge Validate-and-Retry Loop
+
+After each generation, `validateAndRetryProse` in `src/gateway/services/archetype-generator.ts` calls `judgeProseForPlumbing` to check the generated fields for leaks. The judge uses `PLUMBING_JUDGE_SYSTEM_PROMPT` (defined in `archetype-generator-prompts.ts`) and inspects `identity`, `execution_steps`, `delivery_steps`, and `overview` sub-fields.
+
+**Retry behavior:**
+
+- If the judge detects a leak, `validateAndRetryProse` appends a corrective feedback message and calls the regenerate function again (retry 1).
+- If the leak persists, it retries once more (retry 2).
+- After 3 total generations (original + 2 retries), it accepts the last attempt and emits `log.warn` — employee creation is never blocked.
+
+**Fail-open guarantee:** Any error inside `judgeProseForPlumbing` (LLM call failure, JSON parse error, unexpected response shape) returns `{ has_leak: false }` and emits `log.warn`. The judge never throws and never blocks creation.
+
+`validateAndRetryProse` is called at three sites: `generate()`, `refine()`, and the CREATE branch of `converse()`. All three paths share the same retry wrapper — no path bypasses the judge.
+
+#### DEFAULT_DELIVERY_INSTRUCTIONS
+
+`DEFAULT_DELIVERY_INSTRUCTIONS` in `src/lib/output-contract-constants.ts` is the fallback used when `delivery_steps` is null or empty. It is plain English with no tool paths, no `/tmp/` references, and no CLI syntax — it describes intent only. `postProcess()` in `archetype-generator.ts` fills a null `delivery_steps` with this constant so wizard-created employees always have a non-null value. The route handler in `admin-archetype-converse-create.ts` also applies it as a fallback. Manual seeds that intend the escape hatch must set `delivery_steps: null` explicitly.
+
 ### Archetype Editing Shared Helpers
 
 `mapArchetypeRowToConfig`, `validateProposalFields`, and `resolveToolPaths` live in `src/gateway/lib/archetype-edit-helpers.ts`. All are used by `propose-edit`, `converse-create`, and the PATCH route. Import from there — do not inline or duplicate these functions in route handlers.
