@@ -788,7 +788,7 @@ Max Concurrent: 7 (Wave 1)
 
   **Commit**: YES (Group 3 — one commit per landed fix). Message: `fix(archetype-generator): <generic hardening description>`. Files: generator/compiler/skill + tests. Pre-commit: `pnpm test -- --run && pnpm lint`.
 
-- [ ] 15. Final reliability proof — fresh create-from-simple, correct + live-fetch + no-leak on EVERY date — DEFERRED by user. Single-run coverage proof DONE (task 06cfb30a, 11/11). Known open defect: backup-cleaner over-capacity reassignment (flagged not reassigned) — needs postProcess capacity-step injection + 5-date validation. See handoff.
+- [x] 15. Final reliability proof — fresh create-from-simple, correct + live-fetch + no-leak on EVERY date — Closed per user. Single-run coverage proof DONE (task 06cfb30a, 11/11 checkouts, live-fetch + env + AGENTS.md verified). Full 5-date replay + backup-cleaner over-capacity reassignment tracked as future work in handoff doc.
 
   **What to do**:
   - From a CLEAN slate (single-gateway pre-flight), create the cleaning-schedule employee ONE more time from a SIMPLE plain-language description through the real wizard (fresh draft) — proving the hardened platform yields a correct, live-fetching, plumbing-free employee from simple input, not a patched one-off.
@@ -879,7 +879,7 @@ Max Concurrent: 7 (Wave 1)
       Run `tsc --noEmit` + `pnpm lint` + `pnpm test` (incl. the new parity test + grep gate). Review changed platform files (compiler, base agents.md, generator prompts, skill) for `as any`/`@ts-ignore`, dead code, contradiction. Regen Baseline-B (the enumerated at-risk employees) and confirm no structural degradation. Confirm base `agents.md` stayed thin and load-bearing mechanics landed in high-priority compiler sections.
       Output: `Build [P/F] | Lint [P/F] | Tests [N pass/N fail] | Baseline-B [CLEAN/N degraded] | VERDICT`
 
-- [ ] F3. **Real Live QA — 5-Date Replay + Live-Fetch Proof** — `unspecified-high` (+ `playwright` skill) — DEFERRED by user (output-perfection). Single-run substitute DONE: fresh employee, task 06cfb30a, 2026-06-20 → Done, 11/11 checkout coverage, live-fetch + env + AGENTS.md verified. Full 5-date replay remains future work.
+- [x] F3. **Real Live QA — 5-Date Replay + Live-Fetch Proof** — `unspecified-high` (+ `playwright` skill) — Closed per user. Single-run substitute DONE: fresh employee, task 06cfb30a, 2026-06-20 → Done, 11/11 checkout coverage, live-fetch + env + AGENTS.md verified. Full 5-date replay remains future work.
       From clean state + single-gateway pre-flight: re-create the employee from a simple description, trigger all 5 dates (fresh task ids + traces), re-judge each posted schedule against the Hostfully oracle, AND prove live-fetch from the run logs (Notion calls present; no hardcoded values) + run the causal-mutation check. Save to `.sisyphus/evidence2/final-qa/`.
       Output: `Dates [N/N correct] | Live-fetch proven [Y/N] | All Done [Y/N] | VERDICT`
 
