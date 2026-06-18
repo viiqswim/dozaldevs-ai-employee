@@ -115,4 +115,24 @@ describe('generator-prompts parity', () => {
   it('buildConverseSystemPromptPre forbids determining key from non-roster source', () => {
     expect(converse).toContain("NEVER determine a property's key from the property directory");
   });
+
+  it('SYSTEM_PROMPT_PRE forbids grouping nearby keys and assigning to nearby team member', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain('Do NOT group nearby');
+    expect(SYSTEM_PROMPT_PRE).toContain('Do NOT assign to a nearby team member to fill the gap');
+  });
+
+  it('buildConverseSystemPromptPre forbids grouping nearby keys and assigning to nearby team member', () => {
+    expect(converse).toContain('Do NOT group nearby');
+    expect(converse).toContain('Do NOT assign to a nearby team member to fill the gap');
+  });
+
+  it('SYSTEM_PROMPT_PRE requires coverage key from work item not reference page', () => {
+    expect(SYSTEM_PROMPT_PRE).toContain('coverage key');
+    expect(SYSTEM_PROMPT_PRE).toContain('MUST come from the work item itself');
+  });
+
+  it('buildConverseSystemPromptPre requires coverage key from work item not reference page', () => {
+    expect(converse).toContain('coverage key');
+    expect(converse).toContain('MUST come from the work item itself');
+  });
 });
