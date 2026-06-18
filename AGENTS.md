@@ -2,6 +2,8 @@
 
 > Keep this file concise and current. Only include information that helps agents make correct decisions. For architectural details, read the vision doc on demand — don't duplicate it here. This file is loaded into every LLM call — every token here costs tokens on every turn.
 
+> **Alpha Platform — No Backwards Compatibility:** This platform is in active alpha. Do NOT make design or implementation decisions in the name of "backwards compatibility," "not breaking existing behavior," or "preserving the current API/schema." Users of this platform are aware things may break as we improve it. When a cleaner approach exists, take it. Legacy accommodations and compatibility shims introduce technical debt that compounds. If something is wrong or suboptimal, fix it correctly — do not preserve it to avoid breaking callers.
+
 ## Table of Contents
 
 - [Approved LLM Models](#approved-llm-models)
