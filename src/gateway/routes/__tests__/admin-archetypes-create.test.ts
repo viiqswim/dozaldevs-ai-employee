@@ -92,6 +92,8 @@ const VALID_BODY = {
   instructions: 'Step 1.\nStep 2.\nStep 3.',
   agents_md: 'You are a daily digest bot.\n\nWORKFLOW:\n1. Fetch data.\n2. Post to Slack.',
   notification_channel: '#test-channel',
+  delivery_steps:
+    "Take the approved content provided for delivery. Post it to the team's notification channel. Confirm the delivery is complete.",
 };
 
 describe('POST /admin/tenants/:tenantId/archetypes', () => {

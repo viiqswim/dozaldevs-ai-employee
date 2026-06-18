@@ -4,6 +4,7 @@ import {
   ArchetypeGenerator,
   type GenerateArchetypeResponse,
 } from '../../../../src/gateway/services/archetype-generator.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../../../src/lib/output-contract-constants.js';
 
 // Tripwire guards: postProcess() is private and reached only via generate()/refine().
 // They assert the current byte-identical normalization so any future over-reach breaks them.
@@ -221,6 +222,6 @@ describe('refine() round-trip — CLI-style config is preserved', () => {
     expect(result.tool_registry.tools).toEqual(previousConfig.tool_registry.tools);
     expect(result.identity).toBe(previousConfig.identity);
     expect(result.execution_steps).toBe(previousConfig.execution_steps);
-    expect(result.delivery_steps).toBe(previousConfig.delivery_steps);
+    expect(result.delivery_steps).toBe(DEFAULT_DELIVERY_INSTRUCTIONS);
   });
 });

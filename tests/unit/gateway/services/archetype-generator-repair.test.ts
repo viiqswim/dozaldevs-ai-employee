@@ -5,6 +5,7 @@ import {
   repairJsonStrings,
   type GenerateArchetypeResponse,
 } from '../../../../src/gateway/services/archetype-generator.js';
+import { DEFAULT_DELIVERY_INSTRUCTIONS } from '../../../../src/lib/output-contract-constants.js';
 
 type LLMCallArgs = { messages: Array<{ role: string; content: string }> };
 
@@ -49,7 +50,7 @@ function makeConfig(overrides: Partial<GenerateArchetypeResponse> = {}): Generat
     runtime: 'opencode',
     identity: 'You are a helpful assistant.',
     execution_steps: 'Do the task.',
-    delivery_steps: null,
+    delivery_steps: DEFAULT_DELIVERY_INSTRUCTIONS,
     delivery_instructions: null,
     instructions: 'Do the task.',
     deliverable_type: null,
@@ -245,7 +246,7 @@ const UNCHANGED_REFINE_JSON = JSON.stringify({
   role_name: 'test-employee',
   identity: 'You are a helpful assistant.',
   execution_steps: 'Do the task.',
-  delivery_steps: null,
+  delivery_steps: DEFAULT_DELIVERY_INSTRUCTIONS,
   instructions: 'Do the task.',
   tool_registry: { tools: ['/tools/platform/submit-output.ts'] },
   overview: { role: '', trigger: '', workflow: [], tools_used: '', output: '', approval: '' },

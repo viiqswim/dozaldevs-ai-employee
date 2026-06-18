@@ -287,19 +287,17 @@ configuration choices that vary per run). If the description mentions data that 
 a webhook trigger, reference it as an env var ($VAR_NAME), not as an input_schema item.
 
 ## Approval Flow Pattern
-When the employee produces content requiring human approval (NEEDS_APPROVAL classification):
-1. Check the Available Tools list for a specialized approval tool for this domain (e.g., a tool named "post-*-approval.ts")
-2. If one exists: call it BEFORE submit-output.ts. Pass --thread-ts "$NOTIFY_MSG_TS" so the card appears as a reply under the task notification. The approval tool uses $NOTIFICATION_CHANNEL automatically for the channel — do NOT pass --channel. The approval tool writes /tmp/approval-message.json AND /tmp/summary.txt automatically — do NOT call submit-output.ts separately after it.
-3. If no specialized approval tool exists: call submit-output.ts directly with --classification NEEDS_APPROVAL.
+When the employee produces content requiring human approval, describe the intent in plain English — the runtime resolves the exact tools:
+1. If the domain has a specialized approval step (e.g., posting an approval card for this kind of work), the employee posts that approval card before submitting, so a human can review in the notification thread.
+2. Otherwise, the employee submits its output for review with a NEEDS_APPROVAL classification.
+Either way, write this as plain-English intent in the steps — never spell out CLI commands, tool paths, or flags.
 
 ## Passing Data to the Delivery Phase
-If the delivery phase needs identifiers or data from the execution phase (e.g., external
-system IDs, recipient info, content identifiers), include --metadata with a JSON object
-in the submit-output.ts call:
-  tsx /tools/platform/submit-output.ts ... --metadata '{"key": "value", ...}'
-The delivery container receives this in the approved-content JSON under "metadata".
-Use this when the delivery step needs identifiers that are only known during execution
-(e.g., a thread ID needed to reply to a specific conversation).
+If the delivery phase needs identifiers or data known only during execution (e.g., external
+system IDs, recipient info, a thread ID needed to reply to a specific conversation), the
+execution phase passes those identifiers along with the approved content when it submits its
+work. The delivery phase then receives them alongside the approved content. Describe this in
+plain English in the steps — do not reference CLI flags or tool paths.
 
 ## Delivery Templates
 
@@ -342,7 +340,7 @@ Return ONLY valid JSON with this exact shape (no markdown fences, no prose, no e
   "runtime": "opencode",
   "identity": "2-4 sentences describing who this employee is, their persona, role, and org context.",
   "execution_steps": "1. First step.\n2. Second step.\n3. Third step.",
-  "delivery_steps": "1. Read the approved content from <approved-content>.\n2. Deliver it to the configured destination using the appropriate tool.\n3. Submit output confirming delivery via tsx /tools/platform/submit-output.ts --summary \"Delivered successfully\" --classification NO_ACTION_NEEDED.",
+  "delivery_steps": "1. Take the approved content provided for delivery.\n2. Post it to the team's notification channel.\n3. Confirm the delivery is complete.",
   "deliverable_type": "slack_message",
   "input_schema": [
     {
